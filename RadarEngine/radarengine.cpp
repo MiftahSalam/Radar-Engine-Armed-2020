@@ -37,7 +37,6 @@ P2CLookupTable* GetP2CLookupTable()
             exit(1);
         }
 
-        // initialise polar_to_cart_y[arc + 1][radius] arrays
         for (int arc = 0; arc < LINES_PER_ROTATION + 1; arc++)
         {
             GLfloat sine = cosf((GLfloat)arc * PI * 2 / LINES_PER_ROTATION);
@@ -46,8 +45,6 @@ P2CLookupTable* GetP2CLookupTable()
             {
                 lookupTable->x[arc][radius] = (GLfloat)radius * cosine/RETURNS_PER_LINE;
                 lookupTable->y[arc][radius] = (GLfloat)radius * sine/RETURNS_PER_LINE;
-                lookupTable->intx[arc][radius] = (int)lookupTable->x[arc][radius];
-                lookupTable->inty[arc][radius] = (int)lookupTable->y[arc][radius];
 //                qDebug()<<Q_FUNC_INFO<<"x "<<lookupTable->x[arc][radius]<<"y "<<lookupTable->y[arc][radius];
             }
         }
@@ -1122,7 +1119,7 @@ void RadarReceive::setMulticastReport(QString addr, uint port)
 
 void RadarReceive::run()
 {
-    //    qDebug()<<Q_FUNC_INFO;
+    qDebug()<<Q_FUNC_INFO;
     QUdpSocket socketDataReceive;
     QUdpSocket socketReportReceive;
     QString data_thread = _data;
@@ -1132,13 +1129,13 @@ void RadarReceive::run()
     exit_req = false;
 
     QHostAddress groupAddress = QHostAddress(data_thread);
-    if(socketDataReceive.bind(data_port_thread, QUdpSocket::ShareAddress))
+    if(socketDataReceive.bind(QHostAddress::AnyIPv4,data_port_thread, QUdpSocket::ShareAddress))
     {
         socketDataReceive.joinMulticastGroup(groupAddress);
         qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed";
     }
     groupAddress = QHostAddress(report_thread);
-    if(socketDataReceive.bind(reportport_thread, QUdpSocket::ShareAddress))
+    if(socketDataReceive.bind(QHostAddress::AnyIPv4,reportport_thread, QUdpSocket::ShareAddress))
     {
         socketDataReceive.joinMulticastGroup(groupAddress);
         qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed";
@@ -1148,6 +1145,7 @@ void RadarReceive::run()
     {
         if(socketDataReceive.state()==QAbstractSocket::BoundState)
         {
+//            qDebug()<<Q_FUNC_INFO<<"socketDataReceive.state()==QAbstractSocket::BoundState ";
             while (socketDataReceive.hasPendingDatagrams())
             {
                 QByteArray datagram;
@@ -1161,7 +1159,7 @@ void RadarReceive::run()
         else
         {
             groupAddress = QHostAddress(data_thread);
-            if(socketDataReceive.bind(data_port_thread, QUdpSocket::ShareAddress))
+            if(socketDataReceive.bind(QHostAddress::AnyIPv4,data_port_thread, QUdpSocket::ShareAddress))
             {
                 socketDataReceive.joinMulticastGroup(groupAddress);
                 qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed";
@@ -1188,7 +1186,7 @@ void RadarReceive::run()
         else
         {
             groupAddress = QHostAddress(report_thread);
-            if(socketReportReceive.bind(reportport_thread, QUdpSocket::ShareAddress))
+            if(socketReportReceive.bind(QHostAddress::AnyIPv4,reportport_thread, QUdpSocket::ShareAddress))
             {
                 socketReportReceive.joinMulticastGroup(groupAddress);
                 qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed";
@@ -1200,6 +1198,7 @@ void RadarReceive::run()
 
         }
 
+        msleep(5);
     }
     qDebug()<<Q_FUNC_INFO<<"radar receive terminated";
 
@@ -1531,6 +1530,11 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
 
     int angle = MOD_ROTATION2048(angle_raw / 2);    // divide by 2 to map on 2048 scanlines
     int bearing = MOD_ROTATION2048(bearing_raw / 2);  // divide by 2 to map on 2048 scanlines
+
+    if(angle >= HALF_LINES_PER_ROTATION)
+        angle -= HALF_LINES_PER_ROTATION;
+    if(bearing >= HALF_LINES_PER_ROTATION)
+        bearing -= HALF_LINES_PER_ROTATION;
 
     UINT8 *raw_data = (UINT8*)data.data();
 
@@ -3376,6 +3380,7 @@ void RDVert::DrawRadarImage()
     quint64 now = QDateTime::currentMSecsSinceEpoch();
 
     for (size_t i = 0; i < LINES_PER_ROTATION; i++)
+//        for (size_t i = 0; i < HALF_LINES_PER_ROTATION; i++)
     {
         VertexLine* line = &m_vertices[i];
         if (!line->count || TIMED_OUT(now, line->timeout))
