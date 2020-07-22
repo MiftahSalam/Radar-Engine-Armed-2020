@@ -35,6 +35,8 @@
 #define SPOKES (4096)               //  radars can generate up to 4096 spokes per rotation,
 #define LINES_PER_ROTATION (2048)   // but use only half that in practice
 #define HALF_LINES_PER_ROTATION (LINES_PER_ROTATION/2)   // but use only half that in practice
+#define ONE_PER_FOUR_LINES_PER_ROTATION (LINES_PER_ROTATION/4)   // but use only half that in practice
+#define THREE_PER_FOUR_LINES_PER_ROTATION (LINES_PER_ROTATION*3/4)   // but use only half that in practice
 
 #define RETURNS_PER_LINE (512)      //  radars generate 512 separate values per range, at 8 bits each
 #define DEGREES_PER_ROTATION (360)  // Classical math

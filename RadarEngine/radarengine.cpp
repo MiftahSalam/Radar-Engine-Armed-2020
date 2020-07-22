@@ -38,6 +38,10 @@ P2CLookupTable* GetP2CLookupTable()
 
         for (int arc = 0; arc < LINES_PER_ROTATION + 1; arc++)
         {
+            /*
+            GLfloat sine = cosf((GLfloat)(arc-ONE_PER_FOUR_LINES_PER_ROTATION) * PI * 2 / LINES_PER_ROTATION);
+            GLfloat cosine = sinf((GLfloat)(arc-ONE_PER_FOUR_LINES_PER_ROTATION) * PI * 2 / LINES_PER_ROTATION);
+            */
             GLfloat sine = cosf((GLfloat)arc * PI * 2 / LINES_PER_ROTATION);
             GLfloat cosine = sinf((GLfloat)arc * PI * 2 / LINES_PER_ROTATION);
             for (int radius = 0; radius < RETURNS_PER_LINE + 1; radius++)
@@ -1524,16 +1528,27 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
 
     radarHeading = heading;
 
-    short int hdt_raw = radar_settings.headingUp ? 0 : SCALE_DEGREES_TO_RAW(currentHeading);
+    short int hdt_raw = radar_settings.headingUp ? SCALE_DEGREES_TO_RAW(-90) : SCALE_DEGREES_TO_RAW(currentHeading-90);
+//    short int hdt_raw = radar_settings.headingUp ? 0 : SCALE_DEGREES_TO_RAW(currentHeading);
     int bearing_raw = angle_raw + hdt_raw;
 
     int angle = MOD_ROTATION2048(angle_raw / 2);    // divide by 2 to map on 2048 scanlines
     int bearing = MOD_ROTATION2048(bearing_raw / 2);  // divide by 2 to map on 2048 scanlines
 
+    if((angle >= ONE_PER_FOUR_LINES_PER_ROTATION) && (angle<HALF_LINES_PER_ROTATION))
+        angle += HALF_LINES_PER_ROTATION;
+    else if((angle >= HALF_LINES_PER_ROTATION) && (angle<THREE_PER_FOUR_LINES_PER_ROTATION))
+        angle -= HALF_LINES_PER_ROTATION;
+    if((bearing >= ONE_PER_FOUR_LINES_PER_ROTATION) && (bearing<HALF_LINES_PER_ROTATION))
+        bearing += HALF_LINES_PER_ROTATION;
+    else if((bearing >= HALF_LINES_PER_ROTATION) && (bearing<THREE_PER_FOUR_LINES_PER_ROTATION))
+        bearing -= HALF_LINES_PER_ROTATION;
+    /*
     if(angle >= HALF_LINES_PER_ROTATION)
         angle -= HALF_LINES_PER_ROTATION;
     if(bearing >= HALF_LINES_PER_ROTATION)
         bearing -= HALF_LINES_PER_ROTATION;
+    */
 
     UINT8 *raw_data = (UINT8*)data.data();
 
