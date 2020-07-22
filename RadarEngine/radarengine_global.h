@@ -259,14 +259,6 @@ struct TrailSettings
     int trail;
 };
 
-struct ADSBSettings
-{
-    bool show;
-    bool connected;
-    QString ip;
-    uint port;
-};
-
 static const int METRIC_RANGE_COUNT = ARRAY_SIZE(g_ranges_metric);
 
 extern RadarState state_radar;
@@ -277,7 +269,6 @@ extern RadarSettings radar_settings;
 extern ARPASettings arpa_settings;
 extern GZSettings gz_settings;
 extern TrailSettings trail_settings;
-extern ADSBSettings adsb_settings;
 
 extern double currentOwnShipLat;
 extern double currentOwnShipLon;
