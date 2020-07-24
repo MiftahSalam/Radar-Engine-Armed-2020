@@ -284,7 +284,7 @@ class RI : public QObject
 {
     Q_OBJECT
 public:
-    explicit RI(QObject *parent = 0);
+    explicit RI(QObject *parent = 0,int id = 0);
 
     struct line_history
     {
@@ -342,6 +342,7 @@ private:
 
     bool old_draw_trails;
     int old_trail;
+    int radar_id;
 
     void ComputeColourMap();
     void ResetSpokes();

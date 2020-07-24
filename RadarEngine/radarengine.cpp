@@ -1447,8 +1447,8 @@ enum {
 GLubyte old_strength_info[2048][512];
 GLubyte new_strength_info[2048][512];
 
-RI::RI(QObject *parent) :
-    QObject(parent)
+RI::RI(QObject *parent, int id) :
+    QObject(parent),radar_id(id)
 {
 //    if(!checkHddId())
 //        exit(1);
@@ -1719,9 +1719,11 @@ void RI::ComputeColourMap()
     for (int i = 0; i < BLOB_COLOURS; i++)
         m_colour_map_rgb[i] = QColor(0, 0, 0);
 
-    m_colour_map_rgb[BLOB_STRONG] = Qt::red;
-    m_colour_map_rgb[BLOB_INTERMEDIATE] = Qt::green;
-    m_colour_map_rgb[BLOB_WEAK] = Qt::blue;
+    QColor color = radar_id ? Qt::red : Qt::green;
+
+    m_colour_map_rgb[BLOB_STRONG] = color;
+    m_colour_map_rgb[BLOB_INTERMEDIATE] = color;
+    m_colour_map_rgb[BLOB_WEAK] = color;
 
     if (trail_settings.enable)
     {
