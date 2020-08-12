@@ -2043,7 +2043,8 @@ void GZ::ProcessSpoke(int angle, UINT8* data, UINT8* hist, int range)
 #define TARGET_SEARCH_RADIUS2 (60)   // radius of target search area for pass 1. configurable?
 #define SCAN_MARGIN (150)            // number of lines that a next scan of the target may have moved
 #define SCAN_MARGIN2 (1000)          // if target is refreshed after this time you will be shure it is the next sweep
-#define MAX_TARGET_DIAMETER (200)    // target will be set lost if diameter larger than this value. configurable?
+#define MAX_TARGET_DIAMETER (20)
+//#define MAX_TARGET_DIAMETER (200)    // target will be set lost if diameter larger than this value. configurable?
 #define MAX_LOST_COUNT (3)           // number of sweeps that target can be missed before it is seet to lost
 
 #define FOR_DELETION (-2)  // status of a duplicate target used to delete a target
@@ -2890,9 +2891,10 @@ void ARPATarget::RefreshTarget(int dist)
     if (pol.angle < 0) pol.angle += LINES_PER_ROTATION;
     pol.r =(int)(sqrt(x_local.lat * x_local.lat + x_local.lon * x_local.lon) * (double)RETURNS_PER_LINE / (double)m_range);
     // zooming and target movement may  cause r to be out of bounds
+//    qDebug()<<Q_FUNC_INFO<<pol.r<<pol.angle;
     if (pol.r >= RETURNS_PER_LINE || pol.r <= 0)
     {
-        qDebug()<<Q_FUNC_INFO<<" r out of area";
+        qDebug()<<Q_FUNC_INFO<<" r out of area"<<pol.r<<pol.angle;
         SetStatusLost();
         return;
     }
@@ -2998,10 +3000,11 @@ void ARPATarget::RefreshTarget(int dist)
             m_position = prev2_X;
             prev_X = prev2_X;
 
-            return;
+//            return;
         }
 
 
+//        qDebug()<<Q_FUNC_INFO<<m_status;
         // delete low status targets immediately when not found
         if (m_status == ACQUIRE0 || m_status == ACQUIRE1 || m_status == 2)
         {
