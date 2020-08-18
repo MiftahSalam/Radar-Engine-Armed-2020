@@ -6,16 +6,16 @@
 #include <math.h>
 
 #ifndef UINT8
-#define UINT8 u_int8_t
+#define UINT8 quint8
 #endif
 #ifndef UINT8_MAX
 #define UINT8_MAX (255)
 #endif
 #ifndef UINT16
-#define UINT16 u_int16_t
+#define UINT16 quint16
 #endif
 #ifndef UINT32
-#define UINT32 u_int32_t
+#define UINT32 quint32
 #endif
 
 #ifndef PI

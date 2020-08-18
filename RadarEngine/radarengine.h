@@ -309,7 +309,7 @@ public:
 signals:
     void signal_range_change(int range);
     void signal_stay_alive();
-    void signal_plotRadarSpoke(int transparency, int angle, u_int8_t* data, size_t len);
+    void signal_plotRadarSpoke(int transparency, int angle, UINT8* data, size_t len);
 
 private slots:
     void receiveThread_Report(quint8 report_type,quint8 report_field,quint32 value);
@@ -509,7 +509,7 @@ class RD
   static RD* make_Draw(RI *ri, int draw_method);
 
   virtual void DrawRadarImage() = 0;
-  virtual void ProcessRadarSpoke(int transparency, int angle, u_int8_t* data, size_t len) = 0;
+  virtual void ProcessRadarSpoke(int transparency, int angle, UINT8* data, size_t len) = 0;
 
   virtual ~RD() = 0;
 
@@ -538,7 +538,7 @@ public:
     }
 
     void DrawRadarImage();
-    void ProcessRadarSpoke(int transparency, int angle, u_int8_t *data, size_t len);
+    void ProcessRadarSpoke(int transparency, int angle, UINT8 *data, size_t len);
 
     ~RDVert()
     {
@@ -610,7 +610,7 @@ private slots:
 
 private:
     QString _data;
-    uint _data_port;
+    quint16 _data_port;
 };
 
 #endif // RTI_H

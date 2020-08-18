@@ -1,7 +1,10 @@
 #include "radarengine.h"
 
 #include <math.h>
+#ifdef Q_OS_LINUX
 #include <unistd.h>
+#endif
+
 
 RadarState state_radar = RADAR_OFF;
 ReportFilter filter;
@@ -369,7 +372,7 @@ static void ShiftRows(void)
   (*state)[1][3] = temp;
 }
 
-static uint8_t xtime(uint8_t x)
+static uint8_t xtimex(uint8_t x)
 {
   return ((x<<1) ^ (((x>>7) & 1) * 0x1b));
 }
@@ -383,10 +386,10 @@ static void MixColumns(void)
   {
     t   = (*state)[i][0];
     Tmp = (*state)[i][0] ^ (*state)[i][1] ^ (*state)[i][2] ^ (*state)[i][3] ;
-    Tm  = (*state)[i][0] ^ (*state)[i][1] ; Tm = xtime(Tm);  (*state)[i][0] ^= Tm ^ Tmp ;
-    Tm  = (*state)[i][1] ^ (*state)[i][2] ; Tm = xtime(Tm);  (*state)[i][1] ^= Tm ^ Tmp ;
-    Tm  = (*state)[i][2] ^ (*state)[i][3] ; Tm = xtime(Tm);  (*state)[i][2] ^= Tm ^ Tmp ;
-    Tm  = (*state)[i][3] ^ t ;        Tm = xtime(Tm);  (*state)[i][3] ^= Tm ^ Tmp ;
+    Tm  = (*state)[i][0] ^ (*state)[i][1] ; Tm = xtimex(Tm);  (*state)[i][0] ^= Tm ^ Tmp ;
+    Tm  = (*state)[i][1] ^ (*state)[i][2] ; Tm = xtimex(Tm);  (*state)[i][1] ^= Tm ^ Tmp ;
+    Tm  = (*state)[i][2] ^ (*state)[i][3] ; Tm = xtimex(Tm);  (*state)[i][2] ^= Tm ^ Tmp ;
+    Tm  = (*state)[i][3] ^ t ;        Tm = xtimex(Tm);  (*state)[i][3] ^= Tm ^ Tmp ;
   }
 }
 
@@ -395,18 +398,18 @@ static void MixColumns(void)
 static uint8_t Multiply(uint8_t x, uint8_t y)
 {
   return (((y & 1) * x) ^
-       ((y>>1 & 1) * xtime(x)) ^
-       ((y>>2 & 1) * xtime(xtime(x))) ^
-       ((y>>3 & 1) * xtime(xtime(xtime(x)))) ^
-       ((y>>4 & 1) * xtime(xtime(xtime(xtime(x))))));
+       ((y>>1 & 1) * xtimex(x)) ^
+       ((y>>2 & 1) * xtimex(xtimex(x))) ^
+       ((y>>3 & 1) * xtimex(xtimex(xtimex(x)))) ^
+       ((y>>4 & 1) * xtimex(xtimex(xtimex(xtimex(x))))));
   }
 #else
 #define Multiply(x, y)                                \
       (  ((y & 1) * x) ^                              \
-      ((y>>1 & 1) * xtime(x)) ^                       \
-      ((y>>2 & 1) * xtime(xtime(x))) ^                \
-      ((y>>3 & 1) * xtime(xtime(xtime(x)))) ^         \
-      ((y>>4 & 1) * xtime(xtime(xtime(xtime(x))))))   \
+      ((y>>1 & 1) * xtimex(x)) ^                       \
+      ((y>>2 & 1) * xtimex(xtimex(x))) ^                \
+      ((y>>3 & 1) * xtimex(xtimex(xtimex(x)))) ^         \
+      ((y>>4 & 1) * xtimex(xtimex(xtimex(xtimex(x))))))   \
 
 #endif
 
@@ -692,7 +695,11 @@ QStringList keyList = QString("abadiku3abadimu1,"
 QString encodeText(const QString &rawText)
 {
     /*set random number and key num*/
+#ifdef Q_OS_LINUX
     srand(time(NULL));
+#elif defined (Q_OS_WIN32)
+    srand(QDateTime::currentSecsSinceEpoch());
+#endif
     int curKeyNum = rand()%10;
     QString key = keyList.at(curKeyNum);
 
@@ -1782,7 +1789,11 @@ void RI::trigger_ReqRadarSetting()
 {
     ResetSpokes();
     receiveThread->exitReq();
+#ifdef Q_OS_LINUX
     sleep(1);
+#elif defined (Q_OS_WIN32)
+    Sleep(1000);
+#endif
     receiveThread->setMulticastData(radar_settings.ip_data,radar_settings.port_data);
     receiveThread->setMulticastReport(radar_settings.ip_report,radar_settings.port_report);
     receiveThread->start();
@@ -3302,7 +3313,7 @@ void RDVert::SetBlob(VertexLine* line, int angle_begin, int angle_end, int r1, i
 
 }
 
-void RDVert::ProcessRadarSpoke(int transparency, int angle, u_int8_t* data, size_t len)
+void RDVert::ProcessRadarSpoke(int transparency, int angle, UINT8 *data, size_t len)
 {
     QColor colour;
     GLubyte alpha = 255 * (MAX_OVERLAY_TRANSPARENCY - transparency) / MAX_OVERLAY_TRANSPARENCY;
@@ -3437,16 +3448,16 @@ void radarTransmit::setRange(int meters)
 {
     if (meters >= 50 && meters <= 72704)
     {
-        unsigned int decimeters = (unsigned int)meters * 10;
-        const char pck[6] = {0x03,
+        unsigned int decimeters = static_cast<unsigned int>(meters * 10);
+        const uchar pck[6] = {0x03,
                              0xc1,
-                             (const char)((decimeters >> 0) & 0XFFL),
-                             (const char)((decimeters >> 8) & 0XFFL),
-                             (const char)((decimeters >> 16) & 0XFFL),
-                             (const char)((decimeters >> 24) & 0XFFL)};
+                             static_cast<const uchar>((decimeters >> 0) & 0XFFL),
+                             static_cast<const uchar>((decimeters >> 8) & 0XFFL),
+                             static_cast<const uchar>((decimeters >> 16) & 0XFFL),
+                             static_cast<const uchar>((decimeters >> 24) & 0XFFL)};
 //        qDebug()<<Q_FUNC_INFO<<"transmit: range "<<meters<<"raw "<<decimeters;
 
-        socket.writeDatagram(pck,6,QHostAddress(_data),_data_port);
+        socket.writeDatagram(reinterpret_cast<const char*>(pck),6,QHostAddress(_data),_data_port);
 
     }
 }
@@ -3454,38 +3465,38 @@ void radarTransmit::RadarStby()
 {
     qDebug()<<Q_FUNC_INFO;
 
-    const char standby1[3]={0x00,0xC1,0x01};
-    const char standby2[3]={0x01,0xC1,0x00};
+    const uchar standby1[3]={0x00,0xC1,0x01};
+    const uchar standby2[3]={0x01,0xC1,0x00};
 
-    socket.writeDatagram(standby1,3,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(standby1),3,QHostAddress(_data),_data_port);
     socket.waitForBytesWritten();
-    socket.writeDatagram(standby2,3,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(standby2),3,QHostAddress(_data),_data_port);
 
 }
 void radarTransmit::RadarTx()
 {
     qDebug()<<Q_FUNC_INFO;
-    const char transmit1[3]={0x00,0xC1,0x01};
-    const char transmit2[3]={0x01,0xC1,0x01};
+    const uchar transmit1[3]={0x00,0xC1,0x01};
+    const uchar transmit2[3]={0x01,0xC1,0x01};
 
-    socket.writeDatagram(transmit1,3,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(transmit1),3,QHostAddress(_data),_data_port);
     socket.waitForBytesWritten();
-    socket.writeDatagram(transmit2,3,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(transmit2),3,QHostAddress(_data),_data_port);
 
 }
 void radarTransmit::RadarStayAlive()
 {
 //    qDebug()<<Q_FUNC_INFO;
 
-    const char transmit1[2]={0xA0,0xC1};
-    const char transmit2[2]={0x03,0xC2};
-    const char transmit3[2]={0x04,0xC2};
-    const char transmit4[2]={0x05,0xC2};
+    const uchar transmit1[2]={0xA0,0xC1};
+    const uchar transmit2[2]={0x03,0xC2};
+    const uchar transmit3[2]={0x04,0xC2};
+    const uchar transmit4[2]={0x05,0xC2};
 
-    socket.writeDatagram(transmit1,2,QHostAddress(_data),_data_port);
-    socket.writeDatagram(transmit2,2,QHostAddress(_data),_data_port);
-    socket.writeDatagram(transmit3,2,QHostAddress(_data),_data_port);
-    socket.writeDatagram(transmit4,2,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(transmit1),2,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(transmit2),2,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(transmit3),2,QHostAddress(_data),_data_port);
+    socket.writeDatagram(reinterpret_cast<const char*>(transmit4),2,QHostAddress(_data),_data_port);
 
 }
 void radarTransmit::setControlValue(ControlType controlType, int value) {  // sends the command to the radar
