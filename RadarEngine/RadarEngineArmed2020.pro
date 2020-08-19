@@ -14,6 +14,12 @@ SOURCES += \
 HEADERS += radarengine.h \
     radarengine_global.h 
 
+win32 {
+    CONFIG += c++11 console
+    message(Building for Windows)
+    LIBS+= -lOpenGL32
+}
+
 unix {
         target.path = /usr/lib
         INSTALLS = target

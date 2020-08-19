@@ -1129,7 +1129,7 @@ void RadarReceive::setMulticastReport(QString addr, uint port)
 
 void RadarReceive::run()
 {
-    qDebug()<<Q_FUNC_INFO;
+    qDebug()<<Q_FUNC_INFO<<"test";
     QUdpSocket socketDataReceive;
     QUdpSocket socketReportReceive;
     QString data_thread = _data;
@@ -1138,11 +1138,13 @@ void RadarReceive::run()
     uint reportport_thread = _report_port;
     exit_req = false;
 
+    qDebug()<<Q_FUNC_INFO<<data_thread<<data_port_thread;
     QHostAddress groupAddress = QHostAddress(data_thread);
     if(socketDataReceive.bind(QHostAddress::AnyIPv4,data_port_thread, QUdpSocket::ShareAddress))
     {
         socketDataReceive.joinMulticastGroup(groupAddress);
-        qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed";
+        qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed"<<
+                  data_thread<<data_port_thread;
     }
     groupAddress = QHostAddress(report_thread);
     if(socketDataReceive.bind(QHostAddress::AnyIPv4,reportport_thread, QUdpSocket::ShareAddress))
@@ -1163,7 +1165,7 @@ void RadarReceive::run()
                 socketDataReceive.readDatagram(datagram.data(), datagram.size());
 
                 processFrame(datagram,datagram.size());
-                //                qDebug()<<Q_FUNC_INFO<<"Receive datagram with size "<<datagram.size();
+//                qDebug()<<Q_FUNC_INFO<<"Receive datagram with size "<<datagram.size();
             }
         }
         else
@@ -1190,7 +1192,7 @@ void RadarReceive::run()
                 socketReportReceive.readDatagram(datagram.data(), datagram.size());
 
                 processReport(datagram,datagram.size());
-                qDebug()<<Q_FUNC_INFO<<"Receive datagram report with size "<<datagram.size();
+//                qDebug()<<Q_FUNC_INFO<<"Receive datagram report with size "<<datagram.size();
             }
         }
         else
@@ -1314,6 +1316,7 @@ void RadarReceive::processReport(QByteArray data, int len)
 
 void RadarReceive::processFrame(QByteArray data, int len)
 {
+//    qDebug()<<Q_FUNC_INFO;
     radar_frame_pkt *packet = (radar_frame_pkt *)data.data();
 
     if (len < (int)sizeof(packet->frame_hdr)) {
