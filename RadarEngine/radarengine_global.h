@@ -269,7 +269,7 @@ extern ReportAlign align;
 extern ReportScanSignal scanSignal;
 extern RadarSettings radar_settings;
 extern ARPASettings arpa_settings;
-extern GZSettings gz_settings;
+extern GZSettings gz_settings[3];
 extern TrailSettings trail_settings;
 
 extern double currentOwnShipLat;
@@ -278,6 +278,7 @@ extern double radarHeading;
 extern double currentHeading;
 extern bool gps_auto;
 extern bool hdg_auto;
+extern bool headingUp;
 
 extern bool enable_mti;
 extern int mti_value;

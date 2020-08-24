@@ -244,7 +244,7 @@ class RadarReceive : public QThread
 {
     Q_OBJECT
 public:
-    explicit RadarReceive(QObject *parent = 0);
+    explicit RadarReceive(QObject *parent = nullptr);
     ~RadarReceive();
 
     void exitReq();

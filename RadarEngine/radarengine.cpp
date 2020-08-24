@@ -12,7 +12,7 @@ ReportAlign align;
 ReportScanSignal scanSignal;
 RadarSettings radar_settings;
 ARPASettings arpa_settings;
-GZSettings gz_settings;
+GZSettings gz_settings[3];
 TrailSettings trail_settings;
 
 double currentOwnShipLat;
@@ -26,12 +26,12 @@ bool hdg_auto;
 bool enable_mti;
 int mti_value;
 
-P2CLookupTable *lookupTable = 0;
+P2CLookupTable *lookupTable = nullptr;
 P2CLookupTable* GetP2CLookupTable()
 {
     if (!lookupTable)
     {
-        lookupTable = (P2CLookupTable*)malloc(sizeof(P2CLookupTable));
+        lookupTable = static_cast<P2CLookupTable*>(malloc(sizeof(P2CLookupTable)));
 
         if (!lookupTable)
         {
@@ -1129,7 +1129,6 @@ void RadarReceive::setMulticastReport(QString addr, uint port)
 
 void RadarReceive::run()
 {
-    qDebug()<<Q_FUNC_INFO<<"test";
     QUdpSocket socketDataReceive;
     QUdpSocket socketReportReceive;
     QString data_thread = _data;
@@ -1140,17 +1139,20 @@ void RadarReceive::run()
 
     qDebug()<<Q_FUNC_INFO<<data_thread<<data_port_thread;
     QHostAddress groupAddress = QHostAddress(data_thread);
-    if(socketDataReceive.bind(QHostAddress::AnyIPv4,data_port_thread, QUdpSocket::ShareAddress))
+    if(socketDataReceive.bind(QHostAddress::AnyIPv4,
+                              static_cast<quint16>(data_port_thread), QUdpSocket::ShareAddress))
     {
         socketDataReceive.joinMulticastGroup(groupAddress);
         qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed"<<
                   data_thread<<data_port_thread;
     }
     groupAddress = QHostAddress(report_thread);
-    if(socketDataReceive.bind(QHostAddress::AnyIPv4,reportport_thread, QUdpSocket::ShareAddress))
+    if(socketDataReceive.bind(QHostAddress::AnyIPv4,
+                              static_cast<quint16>(reportport_thread), QUdpSocket::ShareAddress))
     {
         socketDataReceive.joinMulticastGroup(groupAddress);
-        qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed";
+        qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed"<<
+                  report_thread<<reportport_thread;
     }
 
     while(!exit_req)
@@ -1161,7 +1163,7 @@ void RadarReceive::run()
             while (socketDataReceive.hasPendingDatagrams())
             {
                 QByteArray datagram;
-                datagram.resize(socketDataReceive.pendingDatagramSize());
+                datagram.resize(static_cast<int>(socketDataReceive.pendingDatagramSize()));
                 socketDataReceive.readDatagram(datagram.data(), datagram.size());
 
                 processFrame(datagram,datagram.size());
@@ -1171,7 +1173,8 @@ void RadarReceive::run()
         else
         {
             groupAddress = QHostAddress(data_thread);
-            if(socketDataReceive.bind(QHostAddress::AnyIPv4,data_port_thread, QUdpSocket::ShareAddress))
+            if(socketDataReceive.bind(QHostAddress::AnyIPv4,
+                                      static_cast<quint16>(data_port_thread), QUdpSocket::ShareAddress))
             {
                 socketDataReceive.joinMulticastGroup(groupAddress);
                 qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed";
@@ -1188,7 +1191,7 @@ void RadarReceive::run()
             while (socketReportReceive.hasPendingDatagrams())
             {
                 QByteArray datagram;
-                datagram.resize(socketReportReceive.pendingDatagramSize());
+                datagram.resize(static_cast<quint16>(socketReportReceive.pendingDatagramSize()));
                 socketReportReceive.readDatagram(datagram.data(), datagram.size());
 
                 processReport(datagram,datagram.size());
@@ -1198,10 +1201,12 @@ void RadarReceive::run()
         else
         {
             groupAddress = QHostAddress(report_thread);
-            if(socketReportReceive.bind(QHostAddress::AnyIPv4,reportport_thread, QUdpSocket::ShareAddress))
+            if(socketReportReceive.bind(QHostAddress::AnyIPv4,
+                                        static_cast<quint16>(reportport_thread), QUdpSocket::ShareAddress))
             {
                 socketReportReceive.joinMulticastGroup(groupAddress);
-                qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed";
+                qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed"<<
+                          report_thread<<reportport_thread;
             }
             else
             {
@@ -1217,7 +1222,7 @@ void RadarReceive::run()
 }
 void RadarReceive::processReport(QByteArray data, int len)
 {
-    qDebug()<<Q_FUNC_INFO;
+    qDebug()<<Q_FUNC_INFO<<len;
 
     const UINT8 *report =  (const UINT8*)data.constData();
     if (report[1] == 0xC4)
@@ -1317,13 +1322,13 @@ void RadarReceive::processReport(QByteArray data, int len)
 void RadarReceive::processFrame(QByteArray data, int len)
 {
 //    qDebug()<<Q_FUNC_INFO;
-    radar_frame_pkt *packet = (radar_frame_pkt *)data.data();
+    radar_frame_pkt *packet = reinterpret_cast<radar_frame_pkt *>(data.data());
 
-    if (len < (int)sizeof(packet->frame_hdr)) {
+    if (len < static_cast<int>(sizeof(packet->frame_hdr))) {
         return;
     }
 
-    int scanlines_in_packet = (len - sizeof(packet->frame_hdr)) / sizeof(radar_line);
+    int scanlines_in_packet = (static_cast<uint>(len) - sizeof(packet->frame_hdr)) / sizeof(radar_line);
     if (scanlines_in_packet != 32)
     {
         qDebug()<<Q_FUNC_INFO<<"broken packet";
@@ -1436,8 +1441,6 @@ void RadarReceive::processFrame(QByteArray data, int len)
 
 
 
-
-
 /**********radar info*************/
 #define STAYALIVE_TIMEOUT (5000)  // Send data every 5 seconds to ping radar
 #define DATA_TIMEOUT (5000)
@@ -1465,7 +1468,6 @@ RI::RI(QObject *parent, int id) :
 
     radar_timeout = 0;
     m_range_meters = 0;
-    //    draw_trails = false; //next implementation load from conf file
 
     old_draw_trails = trail_settings.enable;
     old_trail = trail_settings.trail;
@@ -1488,7 +1490,7 @@ RI::RI(QObject *parent, int id) :
 }
 void RI::timerTimeout()
 {
-    quint64 now = QDateTime::currentMSecsSinceEpoch();
+    quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
 
     if(state_radar == RADAR_TRANSMIT && TIMED_OUT(now,data_timeout))
     {
@@ -1531,7 +1533,7 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
                                                double heading,
                                                bool radar_heading_true)
 {
-    quint64 now = QDateTime::currentMSecsSinceEpoch();
+    quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
     radar_timeout = now + WATCHDOG_TIMEOUT;
     data_timeout = now + DATA_TIMEOUT;
     state_radar = RADAR_TRANSMIT;
@@ -1560,15 +1562,15 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
         bearing -= HALF_LINES_PER_ROTATION;
     */
 
-    UINT8 *raw_data = (UINT8*)data.data();
+    UINT8 *raw_data = reinterpret_cast<UINT8*>(data.data());
 
     raw_data[RETURNS_PER_LINE - 1] = 200;  //  range ring, for testing
 
     if ((m_range_meters != range_meter))
     {
         ResetSpokes();
-        qDebug()<<Q_FUNC_INFO<<"detected spoke range change from "<<m_range_meters<<" to "<<range_meter;
-        int g;
+        qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"detected spoke range change from "<<m_range_meters<<" to "<<range_meter;
+        uint g;
         for (g = 0; g < ARRAY_SIZE(g_ranges_metric); g++)
         {
             if (g_ranges_metric[g].actual_meters == range_meter)
@@ -1586,13 +1588,12 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
     m_history[bearing].time = now;
     m_history[bearing].lat = currentOwnShipLat;
     m_history[bearing].lon = currentOwnShipLon;
-    for (size_t radius = 0; radius < data.size(); radius++)
+    for (int radius = 0; radius < data.size(); radius++)
     {
-
         if(enable_mti)
         {
             new_strength_info[bearing][radius] = raw_data[radius];
-            if(abs((int)(old_strength_info[bearing][radius] - new_strength_info[bearing][radius])) < mti_value)
+            if(abs(static_cast<int>((old_strength_info[bearing][radius] - new_strength_info[bearing][radius]))) < mti_value)
                 raw_data[radius]=0;
         }
 
@@ -1610,7 +1611,7 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
     }
 
     /*check Guardzone*/
-    if(gz_settings.show && gz_settings.enable_alarm)
+    if(gz_settings[0].show && gz_settings[0].enable_alarm)
         m_gz->ProcessSpoke(angle, raw_data, m_history[bearing].line, rng_gz);
 
 
@@ -1620,7 +1621,8 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
         if (m_old_range != m_range_meters && m_old_range != 0 && m_range_meters != 0)
         {
             // zoom trails
-            float zoom_factor = (float)m_old_range / (float)m_range_meters;
+            float zoom_factor = static_cast<float>(m_old_range) /
+                    static_cast<float>(m_range_meters);
             ZoomTrails(zoom_factor);
         }
         if (m_old_range == 0 || m_range_meters == 0)
@@ -1631,7 +1633,7 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
 
         // Relative trails
         UINT8 *trail = m_trails.relative_trails[angle];
-        for (size_t radius = 0; radius < dataSize - 1; radius++)
+        for (int radius = 0; radius < dataSize - 1; radius++)
         {  // len - 1 : no trails on range circle
             if (raw_data[radius] >= weakest_normal_blob)
                 *trail = 1;
@@ -1650,7 +1652,7 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
 
     /*trigger plot spoke*/
     emit signal_plotRadarSpoke(3, //next implemetation load from conf file
-                               bearing,raw_data,dataSize);
+                               bearing,raw_data,static_cast<size_t>(dataSize));
 }
 void RI::ComputeTargetTrails()
 {
@@ -1676,7 +1678,7 @@ void RI::ComputeTargetTrails()
 
     // Like plotter, continuous trails are all very white (non transparent)
     if (trail_settings.enable && (trail_settings.trail < TRAIL_CONTINUOUS))
-        coloursPerRevolution = BLOB_HISTORY_COLOURS / (double)maxRev;
+        coloursPerRevolution = BLOB_HISTORY_COLOURS / static_cast<double>(maxRev);
 
     qDebug()<<Q_FUNC_INFO<<"Target trail value "<<maxRev<<"revolutions";
 
@@ -1685,7 +1687,7 @@ void RI::ComputeTargetTrails()
     {
         if (revolution >= 1 && revolution < maxRev)
         {
-            m_trail_colour[revolution] = (BlobColour)(BLOB_HISTORY_0 + (int)colour);
+            m_trail_colour[revolution] = static_cast<BlobColour>(BLOB_HISTORY_0 + static_cast<int>(colour));
             colour += coloursPerRevolution;
         }
         else
@@ -1723,7 +1725,6 @@ void RI::ComputeColourMap()
                                                               : (i >= 100 /*green strong threshold*/)
                                                                 ? BLOB_INTERMEDIATE
                                                                 : (i >= 50 /*blue strong threshold*/) ? BLOB_WEAK : BLOB_NONE; //next implementation load from conf file
-        //        qDebug()<<Q_FUNC_INFO<<"color map "<<i<<m_colour_map[i];
     }
 
     for (int i = 0; i < BLOB_COLOURS; i++)
@@ -1751,20 +1752,20 @@ void RI::ComputeColourMap()
         int r2 = 0.0;
         int g2 = 0.0;
         int b2 = 0.0;
-        float delta_r = (float)((r2 - r1) / BLOB_HISTORY_COLOURS);
-        float delta_g = (float)((g2 - g1) / BLOB_HISTORY_COLOURS);
-        float delta_b = (float)((b2 - b1) / BLOB_HISTORY_COLOURS);
+        float delta_r = static_cast<float>((r2 - r1) / BLOB_HISTORY_COLOURS);
+        float delta_g = static_cast<float>((g2 - g1) / BLOB_HISTORY_COLOURS);
+        float delta_b = static_cast<float>((b2 - b1) / BLOB_HISTORY_COLOURS);
 
 
         for (BlobColour history = BLOB_HISTORY_0;
              history <= BLOB_HISTORY_MAX;
-             history = (BlobColour)(history + 1))
+             history = static_cast<BlobColour>(history + 1))
         {
             m_colour_map[history] = history;
             m_colour_map_rgb[history] = QColor(r1, g1, b1);
-            r1 += (int)delta_r;
-            g1 += (int)delta_g;
-            b1 += (int)delta_b;
+            r1 += static_cast<int>(delta_r);
+            g1 += static_cast<int>(delta_g);
+            b1 += static_cast<int>(delta_b);
         }
     }
 
@@ -1773,7 +1774,7 @@ void RI::ResetSpokes()
 {
     UINT8 zap[RETURNS_PER_LINE];
 
-    qDebug()<<Q_FUNC_INFO<<"reset spokes, history and trails";
+    qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"reset spokes, history and trails";
 
     memset(zap, 0, sizeof(zap));
     memset(m_history, 0, sizeof(m_history));
@@ -1781,7 +1782,7 @@ void RI::ResetSpokes()
     m_gz->ResetBogeys();
 
     for (size_t r = 0; r < LINES_PER_ROTATION; r++)
-        emit signal_plotRadarSpoke(0,r,zap,sizeof(zap));
+        emit signal_plotRadarSpoke(0,static_cast<int>(r),zap,static_cast<size_t>(sizeof(zap)));
 
 }
 void RI::trigger_clearTrail()
@@ -1804,7 +1805,7 @@ void RI::trigger_ReqRadarSetting()
 
 void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 value)
 {
-    quint64 now = QDateTime::currentMSecsSinceEpoch();
+    quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
     radar_timeout = now + WATCHDOG_TIMEOUT;
 
     switch (report_type)
@@ -1814,15 +1815,15 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         {
         case RADAR_STANDBY:
             state_radar = RADAR_STANDBY;
-            qDebug()<<Q_FUNC_INFO<<"report status RADAR_STANDBY";
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_STANDBY";
             break;
         case RADAR_TRANSMIT:
             state_radar = RADAR_TRANSMIT;
-            qDebug()<<Q_FUNC_INFO<<"report status RADAR_TRANSMIT";
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_TRANSMIT";
             break;
         case RADAR_WAKING_UP:
             state_radar = RADAR_WAKING_UP;
-            qDebug()<<Q_FUNC_INFO<<"report status RADAR_WAKING_UP";
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_WAKING_UP";
             break;
         default:
             break;
@@ -1832,32 +1833,32 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         switch (report_field)
         {
         case RADAR_GAIN:
-            filter.gain = value;
-            qDebug()<<Q_FUNC_INFO<<"report gain"<<filter.gain;
+            filter.gain = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report gain"<<filter.gain;
             break;
         case RADAR_RAIN:
-            filter.rain = value;
-            qDebug()<<Q_FUNC_INFO<<"report rain"<<filter.rain;
+            filter.rain = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report rain"<<filter.rain;
             break;
         case RADAR_SEA:
-            filter.sea = value;
-            qDebug()<<Q_FUNC_INFO<<"report sea"<<filter.sea;
+            filter.sea = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report sea"<<filter.sea;
             break;
         case RADAR_TARGET_BOOST:
-            filter.targetBoost = value;
-            qDebug()<<Q_FUNC_INFO<<"report TargetBoost"<<filter.targetBoost;
+            filter.targetBoost = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report TargetBoost"<<filter.targetBoost;
             break;
         case RADAR_LOCAL_INTERFERENCE_REJECTION:
-            filter.LInterference = value;
-            qDebug()<<Q_FUNC_INFO<<"report local interference"<<filter.LInterference;
+            filter.LInterference = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report local interference"<<filter.LInterference;
             break;
         case RADAR_TARGET_EXPANSION:
-            filter.targetExpan = value;
-            qDebug()<<Q_FUNC_INFO<<"report argetExpan"<<filter.targetExpan;
+            filter.targetExpan = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report argetExpan"<<filter.targetExpan;
             break;
         case RADAR_RANGE:
             filter.range = value;
-            qDebug()<<Q_FUNC_INFO<<"report range"<<filter.range;
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report range"<<filter.range;
             break;
         default:
             break;
@@ -1868,15 +1869,15 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         {
         case RADAR_BEARING:
             // bearing alignment
-            align.bearing = (int)value / 10;
+            align.bearing = static_cast<int>(value) / 10;
             if (align.bearing > 180)
                 align.bearing = align.bearing - 360;
-            qDebug()<<Q_FUNC_INFO<<"report radar bearing alignment"<<align.bearing;
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar bearing alignment"<<align.bearing;
             break;
         case RADAR_ANTENA:
             // antenna height
-            align.antena_height = value;
-            qDebug()<<Q_FUNC_INFO<<"report radar antenna_height"<<align.antena_height/1000;
+            align.antena_height = static_cast<quint16>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar antenna_height"<<align.antena_height/1000;
             break;
         default:
             break;
@@ -1886,24 +1887,24 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         switch (report_field)
         {
         case RADAR_SCAN_SPEED:
-            scanSignal.scan_speed = value;
-            qDebug()<<Q_FUNC_INFO<<"report radar scan_speed"<<scanSignal.scan_speed ;
+            scanSignal.scan_speed = static_cast<quint16>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar scan_speed"<<scanSignal.scan_speed ;
             break;
         case RADAR_NOISE_REJECT:
-            scanSignal.noise_reject = value;
-            qDebug()<<Q_FUNC_INFO<<"report radar noise_reject"<<scanSignal.noise_reject ;
+            scanSignal.noise_reject = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar noise_reject"<<scanSignal.noise_reject ;
             break;
         case RADAR_TARGET_SEPARATION:
-            scanSignal.target_sep = value;
-            qDebug()<<Q_FUNC_INFO<<"report radar target_sep"<<scanSignal.target_sep ;
+            scanSignal.target_sep = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar target_sep"<<scanSignal.target_sep ;
             break;
         case RADAR_LOBE_SUPRESION:
-            scanSignal.side_lobe_suppression = value; //0->auto
-            qDebug()<<Q_FUNC_INFO<<"report radar side_lobe_suppression"<<scanSignal.side_lobe_suppression ;
+            scanSignal.side_lobe_suppression = static_cast<quint8>(value); //0->auto
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar side_lobe_suppression"<<scanSignal.side_lobe_suppression ;
             break;
         case RADAR_INTERFERENT:
-            scanSignal.local_interference_rejection = value;
-            qDebug()<<Q_FUNC_INFO<<"report radar local_interference_rejection"<<scanSignal.local_interference_rejection ;
+            scanSignal.local_interference_rejection = static_cast<quint8>(value);
+            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar local_interference_rejection"<<scanSignal.local_interference_rejection ;
             break;
         default:
             break;
@@ -1924,11 +1925,11 @@ GZ::GZ(RI *ri)
 //        exit(1);
 
     m_ri = ri;
-    m_type = (GZType)(gz_settings.circle_type);
-    m_start_bearing = gz_settings.start_bearing;
-    m_end_bearing = gz_settings.end_bearing;
-    m_inner_range = gz_settings.inner_range;
-    m_outer_range = gz_settings.outer_range;
+    m_type = static_cast<GZType>((gz_settings[0].circle_type));
+    m_start_bearing = static_cast<int>(gz_settings[0].start_bearing);
+    m_end_bearing =  static_cast<int>(gz_settings[0].end_bearing);
+    m_inner_range =  static_cast<int>(gz_settings[0].inner_range);
+    m_outer_range =  static_cast<int>(gz_settings[0].outer_range);
     ResetBogeys();
 }
 
@@ -1936,33 +1937,33 @@ void GZ::ProcessSpoke(int angle, UINT8* data, UINT8* hist, int range)
 {
 
     //    qDebug()<<Q_FUNC_INFO<<"inner "<<m_inner_range<<"outter "<<m_outer_range;
-    size_t range_start = m_inner_range * RETURNS_PER_LINE / range / 2;  // Convert from meters to 0..511
-    size_t range_end = m_outer_range * RETURNS_PER_LINE / range / 2;    // Convert from meters to 0..511
+    size_t range_start =  static_cast<size_t>( m_inner_range * RETURNS_PER_LINE / range / 2);  // Convert from meters to 0..511
+    size_t range_end =  static_cast<size_t>(m_outer_range * RETURNS_PER_LINE / range / 2);    // Convert from meters to 0..511
     bool in_guard_zone = false;
 
-    if(m_inner_range != gz_settings.inner_range)
+    if(m_inner_range != static_cast<int>(gz_settings[0].inner_range))
     {
-        m_inner_range = gz_settings.inner_range;
+        m_inner_range = static_cast<int>(gz_settings[0].inner_range);
         ResetBogeys();
     }
-    if(m_outer_range != gz_settings.outer_range)
+    if(m_outer_range != static_cast<int>(gz_settings[0].outer_range))
     {
-        m_outer_range = gz_settings.outer_range;
+        m_outer_range = static_cast<int>(gz_settings[0].outer_range);
         ResetBogeys();
     }
-    if(m_start_bearing != gz_settings.start_bearing)
+    if(m_start_bearing != static_cast<int>(gz_settings[0].start_bearing))
     {
-        m_start_bearing = gz_settings.start_bearing;
+        m_start_bearing = static_cast<int>(gz_settings[0].start_bearing);
         ResetBogeys();
     }
-    if(m_end_bearing != gz_settings.end_bearing)
+    if(m_end_bearing != static_cast<int>(gz_settings[0].end_bearing))
     {
-        m_end_bearing = gz_settings.end_bearing;
+        m_end_bearing = static_cast<int>(gz_settings[0].end_bearing);
         ResetBogeys();
     }
-    if(m_type != (GZType)gz_settings.circle_type)
+    if(m_type != static_cast<GZType>(gz_settings[0].circle_type))
     {
-        m_type = (GZType)gz_settings.circle_type;
+        m_type = static_cast<GZType>(gz_settings[0].circle_type);
         ResetBogeys();
     }
 
@@ -2019,7 +2020,6 @@ void GZ::ProcessSpoke(int angle, UINT8* data, UINT8* hist, int range)
 
         }
         break;
-
     default:
         in_guard_zone = false;
         break;
