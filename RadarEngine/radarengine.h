@@ -256,6 +256,7 @@ signals:
                            int dataSize, int range_meter,double heading,
                            bool radar_heading_true);
     void updateReport(quint8 report_type,quint8 report_field,quint32 value);
+    void signal_changeAntena(QString sig);
 
 protected:
     void run();
@@ -310,6 +311,7 @@ signals:
     void signal_range_change(int range);
     void signal_stay_alive();
     void signal_plotRadarSpoke(int transparency, int angle, UINT8* data, size_t len);
+    void signal_changeAntena(QString sig);
 
 private slots:
     void receiveThread_Report(quint8 report_type,quint8 report_field,quint32 value);

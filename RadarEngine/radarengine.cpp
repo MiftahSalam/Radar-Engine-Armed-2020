@@ -1360,6 +1360,15 @@ void RadarReceive::processFrame(QByteArray data, int len)
         short int small_range = (line->br4g.smallrange[1] << 8) | line->br4g.smallrange[0];
         angle_raw = (line->br4g.angle[1] << 8) | line->br4g.angle[0];
 
+        if(angle_raw == 2048)
+        {
+            emit signal_changeAntena("1");
+        }
+        else if (angle_raw == 0)
+        {
+            emit signal_changeAntena("0");
+        }
+
         /* tapping result
              * tx : 100 -> rec : 176/2c0
              * tx : 250 -> rec : 439/6dc
@@ -1485,6 +1494,7 @@ RI::RI(QObject *parent, int id) :
             this,SLOT(receiveThread_Report(quint8,quint8,quint32)));
     connect(receiveThread,SIGNAL(ProcessRadarSpoke(int,QByteArray,int,int,double,bool)),
             this,SLOT(radarReceive_ProcessRadarSpoke(int,QByteArray,int,int,double,bool)));
+    connect(receiveThread,&RadarReceive::signal_changeAntena,this,&RI::signal_changeAntena);
 
     timer->start(1000);
 }
