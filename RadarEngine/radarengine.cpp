@@ -7,6 +7,7 @@
 
 
 RadarState state_radar = RADAR_OFF;
+RadarState state_radar1 = RADAR_OFF;
 ReportFilter filter;
 ReportAlign align;
 ReportScanSignal scanSignal;
@@ -1105,6 +1106,7 @@ RadarReceive::RadarReceive(QObject *parent) :
 //        exit(1);
 
     exit_req = false;
+    radar_id = dynamic_cast<RI*>(parent)->radar_id;
 
 }
 RadarReceive::~RadarReceive()
@@ -1360,11 +1362,16 @@ void RadarReceive::processFrame(QByteArray data, int len)
         short int small_range = (line->br4g.smallrange[1] << 8) | line->br4g.smallrange[0];
         angle_raw = (line->br4g.angle[1] << 8) | line->br4g.angle[0];
 
-        if(angle_raw == 2048)
+        /*
+        qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"angle_raw"<<angle_raw
+                  <<"scan_number"<<line->common.scan_number[0]<<line->common.scan_number[1]
+                 <<"scanline"<<scanline;
+        */
+        if(angle_raw == 1024)
         {
             emit signal_changeAntena("1");
         }
-        else if (angle_raw == 0)
+        else if (angle_raw == 3072)
         {
             emit signal_changeAntena("0");
         }
@@ -1422,29 +1429,15 @@ void RadarReceive::processFrame(QByteArray data, int len)
 //        range_meters *= 0.5688;
 //        qDebug()<<Q_FUNC_INFO<<range_raw;
 
-        bool radar_heading_valid = HEADING_VALID(heading_raw);
-        bool radar_heading_true = (heading_raw & HEADING_TRUE_FLAG) != 0;
-        double heading = -400;
-
-        if (radar_heading_valid)
-        {
-            heading = MOD_DEGREES(SCALE_RAW_TO_DEGREES(MOD_ROTATION(heading_raw)));
-        }
-        else
-        {
-            // no heading on radar
-            //          qDebug()<<Q_FUNC_INFO<<"no heading on radar "<<heading;
-        }
-
         const char *data_p = (const char *)line->data;
         QByteArray raw_data = QByteArray(data_p,512);
-        //      qDebug()<<Q_FUNC_INFO<<"sizeof data "<<sizeof(line->data)<<"size data array"<<raw_data.size();
+
+        /*
+        */
         emit ProcessRadarSpoke(angle_raw,
                                raw_data,
                                RETURNS_PER_LINE,
-                               range_meters,
-                               heading,
-                               radar_heading_true);
+                               range_meters);
     }
 }
 
@@ -1492,8 +1485,8 @@ RI::RI(QObject *parent, int id) :
     receiveThread = new RadarReceive(this);
     connect(receiveThread,SIGNAL(updateReport(quint8,quint8,quint32)),
             this,SLOT(receiveThread_Report(quint8,quint8,quint32)));
-    connect(receiveThread,SIGNAL(ProcessRadarSpoke(int,QByteArray,int,int,double,bool)),
-            this,SLOT(radarReceive_ProcessRadarSpoke(int,QByteArray,int,int,double,bool)));
+    connect(receiveThread,&RadarReceive::ProcessRadarSpoke,
+            this,&RI::radarReceive_ProcessRadarSpoke);
     connect(receiveThread,&RadarReceive::signal_changeAntena,this,&RI::signal_changeAntena);
 
     timer->start(1000);
@@ -1501,20 +1494,26 @@ RI::RI(QObject *parent, int id) :
 void RI::timerTimeout()
 {
     quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
+    RadarState *cur_radar_state = radar_id ? &state_radar1 : &state_radar;
 
-    if(state_radar == RADAR_TRANSMIT && TIMED_OUT(now,data_timeout))
+//    qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"state_radar"<<*cur_radar_state;
+    if(radar_id)
     {
-        state_radar = RADAR_STANDBY;
+
+    }
+    if(*cur_radar_state == RADAR_TRANSMIT && TIMED_OUT(now,data_timeout))
+    {
+        *cur_radar_state = RADAR_STANDBY;
         ResetSpokes();
     }
-    if(state_radar == RADAR_TRANSMIT && TIMED_OUT(now,stay_alive_timeout))
+    if(*cur_radar_state == RADAR_TRANSMIT && TIMED_OUT(now,stay_alive_timeout))
     {
         emit signal_stay_alive();
         stay_alive_timeout = now + STAYALIVE_TIMEOUT;
     }
-    if(state_radar == RADAR_STANDBY && TIMED_OUT(now,radar_timeout))
+    if(*cur_radar_state == RADAR_STANDBY && TIMED_OUT(now,radar_timeout))
     {
-        state_radar = RADAR_OFF;
+        *cur_radar_state = RADAR_OFF;
         ResetSpokes();
     }
 
@@ -1539,16 +1538,14 @@ void RI::timerTimeout()
 void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
                                                QByteArray data,
                                                int dataSize,
-                                               int range_meter,
-                                               double heading,
-                                               bool radar_heading_true)
+                                               int range_meter)
 {
     quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
     radar_timeout = now + WATCHDOG_TIMEOUT;
     data_timeout = now + DATA_TIMEOUT;
-    state_radar = RADAR_TRANSMIT;
 
-    radarHeading = heading;
+    RadarState *cur_radar_state = radar_id ? &state_radar1 : &state_radar;
+    *cur_radar_state = RADAR_TRANSMIT;
 
     short int hdt_raw = radar_settings.headingUp ? SCALE_DEGREES_TO_RAW(-90) : SCALE_DEGREES_TO_RAW(currentHeading-90);
 //    short int hdt_raw = radar_settings.headingUp ? 0 : SCALE_DEGREES_TO_RAW(currentHeading);
@@ -1557,6 +1554,8 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
     int angle = MOD_ROTATION2048(angle_raw / 2);    // divide by 2 to map on 2048 scanlines
     int bearing = MOD_ROTATION2048(bearing_raw / 2);  // divide by 2 to map on 2048 scanlines
 
+    /*
+    */
     if((angle >= ONE_PER_FOUR_LINES_PER_ROTATION) && (angle<HALF_LINES_PER_ROTATION))
         angle += HALF_LINES_PER_ROTATION;
     else if((angle >= HALF_LINES_PER_ROTATION) && (angle<THREE_PER_FOUR_LINES_PER_ROTATION))
@@ -1817,6 +1816,7 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
 {
     quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
     radar_timeout = now + WATCHDOG_TIMEOUT;
+    RadarState *cur_radar_state = radar_id ? &state_radar1 : &state_radar;
 
     switch (report_type)
     {
@@ -1824,15 +1824,15 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         switch (report_field)
         {
         case RADAR_STANDBY:
-            state_radar = RADAR_STANDBY;
+            *cur_radar_state = RADAR_STANDBY;
             qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_STANDBY";
             break;
         case RADAR_TRANSMIT:
-            state_radar = RADAR_TRANSMIT;
+            *cur_radar_state = RADAR_TRANSMIT;
             qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_TRANSMIT";
             break;
         case RADAR_WAKING_UP:
-            state_radar = RADAR_WAKING_UP;
+            *cur_radar_state = RADAR_WAKING_UP;
             qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_WAKING_UP";
             break;
         default:
@@ -3420,20 +3420,20 @@ void RDVert::DrawRadarImage()
     glEnableClientState(GL_COLOR_ARRAY);
 
     //    qDebug()<<Q_FUNC_INFO;
-    quint64 now = QDateTime::currentMSecsSinceEpoch();
+//    qint64 now = QDateTime::currentMSecsSinceEpoch();
 
     for (size_t i = 0; i < LINES_PER_ROTATION; i++)
-//        for (size_t i = 0; i < HALF_LINES_PER_ROTATION; i++)
     {
         VertexLine* line = &m_vertices[i];
+        /*
         if (!line->count || TIMED_OUT(now, line->timeout))
         {
             continue;
         }
-
+        */
         glVertexPointer(2, GL_FLOAT, sizeof(VertexPoint), &line->points[0].x);
         glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(VertexPoint), &line->points[0].red);
-        glDrawArrays(GL_TRIANGLES, 0, line->count);
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<int>(line->count));
 //        glDrawArrays(GL_POINTS, 0, line->count);
     }
 

@@ -253,8 +253,7 @@ public:
 
 signals:
     void ProcessRadarSpoke(int angle_raw, QByteArray data,
-                           int dataSize, int range_meter,double heading,
-                           bool radar_heading_true);
+                           int dataSize, int range_meter);
     void updateReport(quint8 report_type,quint8 report_field,quint32 value);
     void signal_changeAntena(QString sig);
 
@@ -271,6 +270,7 @@ private:
     QString _report;
     uint _report_port;
     QMutex mutex;
+    int radar_id;
 };
 
 
@@ -306,6 +306,7 @@ public:
 
     GZ *m_gz;
     RadarReceive *receiveThread;
+    int radar_id;
 
 signals:
     void signal_range_change(int range);
@@ -316,8 +317,7 @@ signals:
 private slots:
     void receiveThread_Report(quint8 report_type,quint8 report_field,quint32 value);
     void radarReceive_ProcessRadarSpoke(int angle_raw, QByteArray data,
-                                        int dataSize, int range_meter, double heading,
-                                        bool radar_heading_true);
+                                        int dataSize, int range_meter);
     void timerTimeout();
     void trigger_clearTrail();
 
@@ -344,7 +344,6 @@ private:
 
     bool old_draw_trails;
     int old_trail;
-    int radar_id;
 
     void ComputeColourMap();
     void ResetSpokes();
@@ -573,7 +572,7 @@ private:
     struct VertexLine
     {
         VertexPoint* points;
-        quint64 timeout;
+        qint64 timeout;
         size_t count;
         size_t allocated;
     };

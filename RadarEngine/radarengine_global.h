@@ -192,6 +192,12 @@ struct RadarSettings
     uint port_report;
     QString ip_command;
     uint port_command;
+    QString ip_data1;
+    uint port_data1;
+    QString ip_report1;
+    uint port_report1;
+    QString ip_command1;
+    uint port_command1;
 };
 struct ARPASettings
 {
@@ -264,6 +270,7 @@ struct TrailSettings
 static const int METRIC_RANGE_COUNT = ARRAY_SIZE(g_ranges_metric);
 
 extern RadarState state_radar;
+extern RadarState state_radar1;
 extern ReportFilter filter;
 extern ReportAlign align;
 extern ReportScanSignal scanSignal;
