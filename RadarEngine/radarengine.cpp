@@ -696,10 +696,10 @@ QStringList keyList = QString("abadiku3abadimu1,"
 QString encodeText(const QString &rawText)
 {
     /*set random number and key num*/
-#ifdef Q_OS_LINUX
-    srand(time(NULL));
-#elif defined (Q_OS_WIN32)
-    srand(QDateTime::currentSecsSinceEpoch());
+#ifdef Q_OS_WIN
+    srand(time_t(QDateTime::currentMSecsSinceEpoch()));
+#elif defined(Q_OS_LINUX)
+    srand(time_t(QDateTime::currentMSecsSinceEpoch()));
 #endif
     int curKeyNum = rand()%10;
     QString key = keyList.at(curKeyNum);
@@ -713,7 +713,7 @@ QString encodeText(const QString &rawText)
     void *rawDataVoid = (void*)rawData;
     const char *rawDataChar = static_cast<const char *>(rawDataVoid);
     QByteArray inputData;
-        // ushort is 2*uint8_t + 1 byte for '\0'
+    // ushort is 2*uint8_t + 1 byte for '\0'
     inputData.append(rawDataChar, rawText.size() * 2 + 1);
 
     const int length = inputData.size();
@@ -727,6 +727,7 @@ QString encodeText(const QString &rawText)
 
     QByteArray data(encodingBuffer.data(), encryptionLength);
     QString hex = QString::fromLatin1(data.toHex());
+
     return hex.append(QString::number(curKeyNum));
 }
 
@@ -760,11 +761,73 @@ QString decodeText(QString hexEncodedText)
 
 #endif // #if defined(CBC) && CBC
 
-bool checkHddId()
+QString cur_id_HDD;
+QString idGuard;
+bool checkExpired;
+QDateTime TIME_EXPIRED;
+QDateTime cur_elapsed_time;
+
+QDateTime initProtect()
 {
     /**
      * Check HDD ID for security reason.
      */
+
+    //    return true;
+#ifdef UBUNTU16
+    char buf[1000];
+
+    FILE *f = popen("udevadm info --query=all --name=/dev/sda1"
+
+                    " | grep ID_SERIAL=", "r");
+    fgets(buf, sizeof buf, f);
+    pclose(f);
+
+    buf[strcspn(buf, "\n")] = 0;
+
+    qDebug()<<Q_FUNC_INFO<<buf;
+
+    QString hddID(buf);
+    //    qDebug() << "HDD ID: " << encodeText( hddID );
+    cur_id_HDD = hddID;
+
+    QFile file(QDir::homePath()+"/.config/cryptRADAR.ini");
+    if( !file.open( QIODevice::ReadOnly ) )
+    {
+        file.setFileName(QString(QCoreApplication::applicationDirPath()+"/cryptRADAR.ini"));
+        if(!file.open(QIODevice::ReadOnly))
+        {
+            qDebug() << " verif not found!";
+            exit(1);
+        }
+    }
+
+    QTextStream fileStream( &file );
+    idGuard = fileStream.readLine();
+    QStringList idGuardList = decodeText(idGuard).split("*+");
+
+    qDebug()<<"idGuardList"<<idGuardList;
+
+    if(idGuardList.size() != 4)
+    {
+        qDebug() << " invalid secure string!";
+        exit(1);
+    }
+
+    idGuard = idGuardList.at(0);
+    QDateTime cur_elapsed_time = QDateTime::fromString(idGuardList.at(1));
+    TIME_EXPIRED = QDateTime::fromString(idGuardList.at(2));
+    checkExpired = idGuardList.at(3) == "1" ? true : false;
+
+    qDebug() << "idGuard: " << idGuard;
+    qDebug() << "cur_id_HDD: " << cur_id_HDD;
+    qDebug() << "cur_elapsed_time: " << cur_elapsed_time.toString();
+    qDebug() << "time expired: " << TIME_EXPIRED.toString();
+    qDebug() << "check: " << checkExpired;
+
+    return cur_elapsed_time;
+
+#elif defined(Q_OS_LINUX)
 
     // get HDD ID from file system
     QFile file( "/var/log/udev" );
@@ -788,15 +851,15 @@ bool checkHddId()
                 hddID = readList.last();
         }
 
-        qDebug() << "HDD ID: " << hddID;
+        //        qDebug() << "HDD ID: " << hddID;
         qDebug() << "HDD ID: " << encodeText( hddID );
 
         file.close();
-        file.setFileName( QDir::homePath()+"/.simrad/cryptSIMRAD.ini" );
+        file.setFileName( QDir::homePath()+"/.radar/cryptRADAR.ini" );
 
         if( !file.open( QIODevice::ReadOnly ) )
         {
-//            qDebug()<<QApplication::applicationDirPath();
+            //            qDebug()<<QApplication::applicationDirPath();
             file.setFileName(QString(QApplication::applicationDirPath()+"/cryptSIMRAD.ini"));
             if(!file.open(QIODevice::ReadOnly))
             {
@@ -825,7 +888,129 @@ bool checkHddId()
         }
     }
     else
+    {
+        qDebug() << "file not found!";
         return false;
+    }
+#elif defined(Q_OS_WIN)
+    QStringList SN_list,tag_list;
+    QProcess proc;
+    proc.start("wmic path win32_physicalmedia get SerialNumber");
+    if(proc.waitForStarted(1000))
+        qDebug()<<" start";
+    proc.closeWriteChannel();
+    while(!proc.waitForFinished(3000));
+    SN_list = QString(proc.readAll()).trimmed().remove("\n").remove("\r").split(" ",QString::SkipEmptyParts);
+
+    proc.start("wmic path win32_physicalmedia get Tag");
+    if(proc.waitForStarted(1000))
+        qDebug()<<" start";
+    proc.closeWriteChannel();
+    while(!proc.waitForFinished(3000));
+    tag_list = QString(proc.readAll()).trimmed().remove("\n").remove("\r").split(" ",QString::SkipEmptyParts);
+
+    int i;
+    for(i=0;i<tag_list.size();i++)
+    {
+        cur_id_HDD = tag_list.at(i);
+        cur_id_HDD.remove("\\").remove(".");
+        if(QString::compare(cur_id_HDD,QString("PHYSICALDRIVE0"))==0)
+            break;
+    }
+
+    if( i >= SN_list.size() )
+    {
+        qDebug() << " invalid verif format!";
+        exit(1);
+    }
+
+    cur_id_HDD = SN_list.at(i);
+
+    QFile file(QDir::homePath()+"/.armed20/cryptRADAR.conf");
+    if( !file.open( QIODevice::ReadOnly ) )
+    {
+        file.setFileName(QString(QCoreApplication::applicationDirPath()+"/cryptRADAR.conf"));
+        if(!file.open(QIODevice::ReadOnly))
+        {
+            qDebug() << " verif not found!";
+            exit(1);
+        }
+    }
+
+    QTextStream fileStream( &file );
+    idGuard = fileStream.readLine();
+    QStringList idGuardList = decodeText(idGuard).split("*+");
+
+    qDebug()<<"idGuardList"<<idGuardList;
+
+    if(idGuardList.size() != 4)
+    {
+        qDebug() << " invalid secure string!";
+        exit(1);
+    }
+
+    idGuard = idGuardList.at(0);
+    QDateTime cur_elapsed_time = QDateTime::fromString(idGuardList.at(1));
+    TIME_EXPIRED = QDateTime::fromString(idGuardList.at(2));
+    checkExpired = idGuardList.at(3) == "1" ? true : false;
+
+    qDebug() << "idGuard: " << idGuard;
+    qDebug() << "cur_id_HDD: " << cur_id_HDD;
+    qDebug() << "cur_elapsed_time: " << cur_elapsed_time.toString();
+    qDebug() << "time expired: " << TIME_EXPIRED.toString();
+    qDebug() << "check: " << checkExpired;
+
+    return cur_elapsed_time;
+#endif
+}
+
+void setProtect(QDateTime elapsed_time)
+{
+    QString str_for_encode = cur_id_HDD;
+    QString check_expired = checkExpired ? "1" : "0";
+    str_for_encode.append("*+").
+            append(elapsed_time.toString()).
+            append("*+").
+            append(TIME_EXPIRED.toString()).
+            append("*+").
+            append(check_expired);
+
+    qDebug() << "cur_id_HDD: " << cur_id_HDD;
+    qDebug() << "cur_elapsed_time: " << elapsed_time.toString();
+    qDebug() << "time expired: " << TIME_EXPIRED.toString();
+    qDebug() << "check: " << checkExpired;
+
+
+    QFile file( QDir::homePath()+"/.armed20/cryptRADAR.conf" );
+
+    if(!file.open( QIODevice::WriteOnly | QFile::Text) )
+        qDebug() << " create file";
+
+    QTextStream fileStream;
+    fileStream.setDevice( &file );
+    fileStream<<encodeText(str_for_encode);
+}
+
+bool checkProtect(const QDateTime cur_elapsed_time)
+{
+    bool valid = false;
+    if( cur_id_HDD == idGuard )
+    {
+        if(checkExpired)
+        {
+            if(cur_elapsed_time < TIME_EXPIRED)
+                valid = true;
+        }
+        else
+            valid = true;
+    }
+
+    if(valid)
+        qDebug() << " Accepted";
+    else
+        qDebug() << " not valid!";
+
+    return valid;
 }
 
 
@@ -1102,8 +1287,12 @@ struct radar_frame_pkt
 RadarReceive::RadarReceive(QObject *parent) :
     QThread(parent)
 {
-//    if(!checkHddId())
-//        exit(1);
+    cur_elapsed_time = initProtect();
+    if(!checkProtect(cur_elapsed_time))
+    {
+        qDebug()<<"not valid";
+        exit(0);
+    }
 
     exit_req = false;
     radar_id = dynamic_cast<RI*>(parent)->radar_id;
@@ -1459,14 +1648,16 @@ enum {
     TRAIL_CONTINUOUS,
     TRAIL_ARRAY_SIZE
 };
-GLubyte old_strength_info[2048][512];
-GLubyte new_strength_info[2048][512];
 
 RI::RI(QObject *parent, int id) :
     QObject(parent),radar_id(id)
 {
-//    if(!checkHddId())
-//        exit(1);
+    cur_elapsed_time = initProtect();
+    if(!checkProtect(cur_elapsed_time))
+    {
+        qDebug()<<"not valid";
+        exit(0);
+    }
 
     radar_timeout = 0;
     m_range_meters = 0;
@@ -1533,8 +1724,22 @@ void RI::timerTimeout()
         ComputeTargetTrails();
         old_trail = trail_settings.trail;
     }
+
+    qDebug()<<"cur_elapsed_time"<<cur_elapsed_time;
+    cur_elapsed_time = cur_elapsed_time.addSecs(1);
+    if(!checkProtect(cur_elapsed_time))
+    {
+        qDebug()<<"expired";
+        setProtect(cur_elapsed_time);
+        exit(1);
+    }
+
 }
 
+RI::~RI()
+{
+    setProtect(cur_elapsed_time);
+}
 void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
                                                QByteArray data,
                                                int dataSize,
@@ -1555,7 +1760,6 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
     int bearing = MOD_ROTATION2048(bearing_raw / 2);  // divide by 2 to map on 2048 scanlines
 
     /*
-    */
     if((angle >= ONE_PER_FOUR_LINES_PER_ROTATION) && (angle<HALF_LINES_PER_ROTATION))
         angle += HALF_LINES_PER_ROTATION;
     else if((angle >= HALF_LINES_PER_ROTATION) && (angle<THREE_PER_FOUR_LINES_PER_ROTATION))
@@ -1564,6 +1768,7 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
         bearing += HALF_LINES_PER_ROTATION;
     else if((bearing >= HALF_LINES_PER_ROTATION) && (bearing<THREE_PER_FOUR_LINES_PER_ROTATION))
         bearing -= HALF_LINES_PER_ROTATION;
+    */
     /*
     if(angle >= HALF_LINES_PER_ROTATION)
         angle -= HALF_LINES_PER_ROTATION;
@@ -2067,7 +2272,7 @@ void GZ::ProcessSpoke(int angle, UINT8* data, UINT8* hist, int range)
 #define TARGET_SEARCH_RADIUS2 (60)   // radius of target search area for pass 1. configurable?
 #define SCAN_MARGIN (150)            // number of lines that a next scan of the target may have moved
 #define SCAN_MARGIN2 (1000)          // if target is refreshed after this time you will be shure it is the next sweep
-#define MAX_TARGET_DIAMETER (20)
+#define MAX_TARGET_DIAMETER (40)
 //#define MAX_TARGET_DIAMETER (200)    // target will be set lost if diameter larger than this value. configurable?
 #define MAX_LOST_COUNT (3)           // number of sweeps that target can be missed before it is seet to lost
 
@@ -2121,8 +2326,12 @@ Polar Pos2Polar(Position p, Position own_ship, int range)
 RA::RA(QObject *parent,RI *ri) :
     QObject(parent),m_ri(ri)
 {
-//    if(!checkHddId())
-//        exit(1);
+    cur_elapsed_time = initProtect();
+    if(!checkProtect(cur_elapsed_time))
+    {
+        qDebug()<<"not valid";
+        exit(0);
+    }
 
     m_number_of_targets = 0;
     for (int i = 0; i < MAX_NUMBER_OF_TARGETS; i++)
@@ -2468,8 +2677,12 @@ void RA::DeleteTarget(Position target_pos) { AcquireOrDeleteMarpaTarget(target_p
 ARPATarget::ARPATarget(QObject *parent, RI *ri) :
     QObject(parent),m_ri(ri)
 {
-//    if(!checkHddId())
-//        exit(1);
+    cur_elapsed_time = initProtect();
+    if(!checkProtect(cur_elapsed_time))
+    {
+        qDebug()<<"not valid";
+        exit(0);
+    }
 
     qDebug()<<Q_FUNC_INFO;
     m_kalman = 0;
@@ -3240,8 +3453,13 @@ QString RD::methods = "Vertex Array";
 // Factory to generate a particular draw implementation
 RD* RD::make_Draw(RI *ri, int draw_method)
 {
-//    if(!checkHddId())
-//        exit(1);
+    cur_elapsed_time = initProtect();
+    if(!checkProtect(cur_elapsed_time))
+    {
+        qDebug()<<"not valid";
+        exit(0);
+    }
+
     qDebug()<<Q_FUNC_INFO;
   switch (draw_method)
   {

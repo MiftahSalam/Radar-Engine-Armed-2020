@@ -278,6 +278,11 @@ extern RadarSettings radar_settings;
 extern ARPASettings arpa_settings;
 extern GZSettings gz_settings[3];
 extern TrailSettings trail_settings;
+extern QString cur_id_HDD;
+extern QString idGuard;
+extern bool checkExpired;
+extern QDateTime TIME_EXPIRED;
+extern QDateTime cur_elapsed_time;
 
 extern double currentOwnShipLat;
 extern double currentOwnShipLon;

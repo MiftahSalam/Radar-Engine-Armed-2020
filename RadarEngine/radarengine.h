@@ -285,7 +285,9 @@ class RI : public QObject
 {
     Q_OBJECT
 public:
-    explicit RI(QObject *parent = 0,int id = 0);
+    explicit RI(QObject *parent = nullptr,int id = 0);
+
+    ~RI();
 
     struct line_history
     {
@@ -296,6 +298,8 @@ public:
     };
 
     line_history m_history[LINES_PER_ROTATION];
+    GLubyte old_strength_info[2048][512];
+    GLubyte new_strength_info[2048][512];
 
     BlobColour m_colour_map[UINT8_MAX + 1];
     QColor m_colour_map_rgb[BLOB_COLOURS];
