@@ -311,6 +311,7 @@ public:
     GZ *m_gz;
     RadarReceive *receiveThread;
     int radar_id;
+    bool checkPix(int r, int angle);
 
 signals:
     void signal_range_change(int range);
@@ -452,6 +453,7 @@ public:
     int m_stationary;
     Position m_position;   // holds actual position of target
 private:
+    RI *m_ri;
     bool GetTarget(Polar* pol, int dist1);
     void ResetPixels();
     bool FindContourFromInside(Polar* pol);
@@ -461,7 +463,6 @@ private:
     int GetContour(Polar* p);
 
     KalmanFilter* m_kalman;
-    RI *m_ri;
     target_status m_status;
     TargetProcessStatus m_pass1_result;
     SpeedHistory m_speeds;
@@ -487,6 +488,7 @@ public:
     int m_number_of_targets,range_meters;
     ARPATarget *m_target[MAX_NUMBER_OF_TARGETS];
 
+    bool MultiPix(int ang, int rad);
     void AcquireNewMARPATarget(Position p);
     int AcquireNewARPATarget(Polar pol, int status);
     void RefreshArpaTargets();
@@ -498,10 +500,9 @@ public:
     }
 
 private:
-    bool Pix(int ang, int rad);
-    bool MultiPix(int ang, int rad);
-    void AcquireOrDeleteMarpaTarget(Position target_pos, int status);
     RI *m_ri;
+    bool Pix(int ang, int rad);
+    void AcquireOrDeleteMarpaTarget(Position target_pos, int status);
 };
 
 

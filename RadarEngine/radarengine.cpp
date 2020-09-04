@@ -941,7 +941,7 @@ QDateTime initProtect()
     idGuard = fileStream.readLine();
     QStringList idGuardList = decodeText(idGuard).split("*+");
 
-    qDebug()<<"idGuardList"<<idGuardList;
+//    qDebug()<<"idGuardList"<<idGuardList;
 
     if(idGuardList.size() != 4)
     {
@@ -954,11 +954,13 @@ QDateTime initProtect()
     TIME_EXPIRED = QDateTime::fromString(idGuardList.at(2));
     checkExpired = idGuardList.at(3) == "1" ? true : false;
 
+    /*
     qDebug() << "idGuard: " << idGuard;
     qDebug() << "cur_id_HDD: " << cur_id_HDD;
     qDebug() << "cur_elapsed_time: " << cur_elapsed_time.toString();
     qDebug() << "time expired: " << TIME_EXPIRED.toString();
     qDebug() << "check: " << checkExpired;
+    */
 
     return cur_elapsed_time;
 #endif
@@ -975,11 +977,12 @@ void setProtect(QDateTime elapsed_time)
             append("*+").
             append(check_expired);
 
+    /*
     qDebug() << "cur_id_HDD: " << cur_id_HDD;
     qDebug() << "cur_elapsed_time: " << elapsed_time.toString();
     qDebug() << "time expired: " << TIME_EXPIRED.toString();
     qDebug() << "check: " << checkExpired;
-
+    */
 
     QFile file( QDir::homePath()+"/.armed20/cryptRADAR.conf" );
 
@@ -1004,11 +1007,12 @@ bool checkProtect(const QDateTime cur_elapsed_time)
         else
             valid = true;
     }
-
+/*
     if(valid)
         qDebug() << " Accepted";
     else
         qDebug() << " not valid!";
+    */
 
     return valid;
 }
@@ -2272,7 +2276,8 @@ void GZ::ProcessSpoke(int angle, UINT8* data, UINT8* hist, int range)
 #define TARGET_SEARCH_RADIUS2 (60)   // radius of target search area for pass 1. configurable?
 #define SCAN_MARGIN (150)            // number of lines that a next scan of the target may have moved
 #define SCAN_MARGIN2 (1000)          // if target is refreshed after this time you will be shure it is the next sweep
-#define MAX_TARGET_DIAMETER (40)
+//#define MAX_TARGET_DIAMETER (5) //just fine for identify weapon
+#define MAX_TARGET_DIAMETER (20) //tes
 //#define MAX_TARGET_DIAMETER (200)    // target will be set lost if diameter larger than this value. configurable?
 #define MAX_LOST_COUNT (3)           // number of sweeps that target can be missed before it is seet to lost
 
@@ -2450,7 +2455,7 @@ bool RA::Pix(int ang, int rad)
     if (rad <= 1 || rad >= RETURNS_PER_LINE - 1) //  avoid range ring
         return false;
 
-    return ((m_ri->m_history[MOD_ROTATION2048(ang)].line[rad] & 128) != 0);
+    return ((m_ri->m_history[MOD_ROTATION2048(ang)].line[rad] & 192) != 0);
 }
 
 bool RA::MultiPix(int ang, int rad)
@@ -2460,6 +2465,7 @@ bool RA::MultiPix(int ang, int rad)
     // false if not
     // if false clears out pixels of th blob in hist
     //    wxCriticalSectionLocker lock(ArpaTarget::m_ri->m_exclusive);
+    qDebug()<<Q_FUNC_INFO<<ang<<rad;
     int length = arpa_settings.min_contour_length;
     Polar start;
     start.angle = ang;
@@ -2535,7 +2541,10 @@ bool RA::MultiPix(int ang, int rad)
         current.angle = aa;
         current.r = rr;
         if (count >= length)
+        {
+            qDebug()<<Q_FUNC_INFO<<"succes"<<count;
             return true;
+        }
 
         count++;
         if (current.angle > max_angle.angle)
