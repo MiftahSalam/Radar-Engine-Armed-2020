@@ -1729,7 +1729,7 @@ void RI::timerTimeout()
         old_trail = trail_settings.trail;
     }
 
-    qDebug()<<"cur_elapsed_time"<<cur_elapsed_time;
+//    qDebug()<<"cur_elapsed_time"<<cur_elapsed_time;
     cur_elapsed_time = cur_elapsed_time.addSecs(1);
     if(!checkProtect(cur_elapsed_time))
     {
@@ -1756,8 +1756,8 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
     RadarState *cur_radar_state = radar_id ? &state_radar1 : &state_radar;
     *cur_radar_state = RADAR_TRANSMIT;
 
-    short int hdt_raw = radar_settings.headingUp ? SCALE_DEGREES_TO_RAW(-90) : SCALE_DEGREES_TO_RAW(currentHeading-90);
-//    short int hdt_raw = radar_settings.headingUp ? 0 : SCALE_DEGREES_TO_RAW(currentHeading);
+//    short int hdt_raw = radar_settings.headingUp ? SCALE_DEGREES_TO_RAW(-90) : SCALE_DEGREES_TO_RAW(currentHeading-90);
+    short int hdt_raw = radar_settings.headingUp ? 0 : SCALE_DEGREES_TO_RAW(currentHeading);
     int bearing_raw = angle_raw + hdt_raw;
 
     int angle = MOD_ROTATION2048(angle_raw / 2);    // divide by 2 to map on 2048 scanlines
@@ -2986,6 +2986,25 @@ void ARPATarget::ResetPixels()
         for (int a = m_min_angle.angle - DISTANCE_BETWEEN_TARGETS; a <= m_max_angle.angle + DISTANCE_BETWEEN_TARGETS; a++)
             m_ri->m_history[MOD_ROTATION2048(a)].line[r] = m_ri->m_history[MOD_ROTATION2048(a)].line[r] & 127;
     }
+}
+
+QPointF ARPATarget::blobPixelPosition()
+{
+    double y_max = currentOwnShipLat +
+            (double)m_max_r_future.r / (double)RETURNS_PER_LINE * m_range * cos(deg2rad(SCALE_RAW_TO_DEGREES2048(m_max_angle_future.angle))) / 60. / 1852.;
+    double x_max = currentOwnShipLon +
+            (double)m_max_r_future.r / (double)RETURNS_PER_LINE * m_range * sin(deg2rad(SCALE_RAW_TO_DEGREES2048(m_max_angle_future.angle))) /
+            cos(deg2rad(currentOwnShipLat)) / 60. / 1852.;
+
+    double y_min = currentOwnShipLat +
+            (double)m_min_r_future.r / (double)RETURNS_PER_LINE * m_range * cos(deg2rad(SCALE_RAW_TO_DEGREES2048(m_min_angle_future.angle))) / 60. / 1852.;
+    double x_min = currentOwnShipLon +
+            (double)m_min_r_future.r / (double)RETURNS_PER_LINE * m_range * sin(deg2rad(SCALE_RAW_TO_DEGREES2048(m_min_angle_future.angle))) /
+            cos(deg2rad(currentOwnShipLat)) / 60. / 1852.;
+    double x_avg = (x_min+x_max)/2;
+    double y_avg = (y_max+y_min)/2;
+
+    return QPointF(x_avg,y_avg);
 }
 
 void ARPATarget::RefreshTarget(int dist)

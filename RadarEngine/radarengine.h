@@ -443,6 +443,7 @@ public:
     ~ARPATarget();
     void RefreshTarget(int dist);
     void SetStatusLost();
+    QPointF blobPixelPosition();
 
     int m_target_id;
     Polar m_max_angle, m_min_angle, m_max_r, m_min_r;
