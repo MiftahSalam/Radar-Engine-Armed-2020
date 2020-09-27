@@ -12,9 +12,11 @@ ReportFilter filter;
 ReportAlign align;
 ReportScanSignal scanSignal;
 RadarSettings radar_settings;
-ARPASettings arpa_settings;
+ARPASettings arpa_settings[2];
 GZSettings gz_settings[3];
 TrailSettings trail_settings;
+
+QString tilting_path;
 
 double currentOwnShipLat;
 double currentOwnShipLon;
@@ -1331,54 +1333,67 @@ void RadarReceive::run()
     uint data_port_thread = _data_port;
     uint reportport_thread = _report_port;
     exit_req = false;
+    bool enable = radar_id == 0 ? radar_settings.enable : radar_settings.enable1;
 
-    qDebug()<<Q_FUNC_INFO<<data_thread<<data_port_thread;
+    qDebug()<<Q_FUNC_INFO<<data_thread<<data_port_thread<<enable;
     QHostAddress groupAddress = QHostAddress(data_thread);
-    if(socketDataReceive.bind(QHostAddress::AnyIPv4,
-                              static_cast<quint16>(data_port_thread), QUdpSocket::ShareAddress))
+
+    if(enable)
     {
-        socketDataReceive.joinMulticastGroup(groupAddress);
-        qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed"<<
-                  data_thread<<data_port_thread;
+        if(socketDataReceive.bind(QHostAddress::AnyIPv4,
+                                  static_cast<quint16>(data_port_thread), QUdpSocket::ShareAddress))
+        {
+            socketDataReceive.joinMulticastGroup(groupAddress);
+            qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed"<<
+                      data_thread<<data_port_thread;
+        }
     }
+
     groupAddress = QHostAddress(report_thread);
-    if(socketDataReceive.bind(QHostAddress::AnyIPv4,
+    if(socketReportReceive.bind(QHostAddress::AnyIPv4,
                               static_cast<quint16>(reportport_thread), QUdpSocket::ShareAddress))
     {
-        socketDataReceive.joinMulticastGroup(groupAddress);
+        socketReportReceive.joinMulticastGroup(groupAddress);
         qDebug()<<Q_FUNC_INFO<<"bind report multicast access succesed"<<
                   report_thread<<reportport_thread;
     }
 
     while(!exit_req)
     {
-        if(socketDataReceive.state()==QAbstractSocket::BoundState)
+        if(enable)
         {
-//            qDebug()<<Q_FUNC_INFO<<"socketDataReceive.state()==QAbstractSocket::BoundState ";
-            while (socketDataReceive.hasPendingDatagrams())
+            if(socketDataReceive.state()==QAbstractSocket::BoundState)
             {
-                QByteArray datagram;
-                datagram.resize(static_cast<int>(socketDataReceive.pendingDatagramSize()));
-                socketDataReceive.readDatagram(datagram.data(), datagram.size());
+                while (socketDataReceive.hasPendingDatagrams())
+                {
+                    QByteArray datagram;
+                    datagram.resize(static_cast<int>(socketDataReceive.pendingDatagramSize()));
+                    socketDataReceive.readDatagram(datagram.data(), datagram.size());
 
-                processFrame(datagram,datagram.size());
-//                qDebug()<<Q_FUNC_INFO<<"Receive datagram with size "<<datagram.size();
-            }
-        }
-        else
-        {
-            groupAddress = QHostAddress(data_thread);
-            if(socketDataReceive.bind(QHostAddress::AnyIPv4,
-                                      static_cast<quint16>(data_port_thread), QUdpSocket::ShareAddress))
-            {
-                socketDataReceive.joinMulticastGroup(groupAddress);
-                qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed";
+                    processFrame(datagram,datagram.size());
+                    /*
+                    if(_data.contains(".71"))
+                    {
+                        qDebug()<<Q_FUNC_INFO<<"socketDataReceive.state()==QAbstractSocket::BoundState "<<_data<<_data_port;
+                        qDebug()<<Q_FUNC_INFO<<"Receive datagram with size "<<datagram.size();
+                    }
+                    */
+                }
             }
             else
             {
-                qDebug()<<Q_FUNC_INFO<<"bind data access failed "<<socketDataReceive.errorString();
+                groupAddress = QHostAddress(data_thread);
+                if(socketDataReceive.bind(QHostAddress::AnyIPv4,
+                                          static_cast<quint16>(data_port_thread), QUdpSocket::ShareAddress))
+                {
+                    socketDataReceive.joinMulticastGroup(groupAddress);
+                    qDebug()<<Q_FUNC_INFO<<"bind data multicast access succesed";
+                }
+                else
+                {
+                    qDebug()<<Q_FUNC_INFO<<"bind data access failed "<<socketDataReceive.errorString();
+                }
             }
-
         }
 
         if(socketReportReceive.state()==QAbstractSocket::BoundState)
@@ -1417,7 +1432,7 @@ void RadarReceive::run()
 }
 void RadarReceive::processReport(QByteArray data, int len)
 {
-    qDebug()<<Q_FUNC_INFO<<len;
+//    qDebug()<<Q_FUNC_INFO<<len;
 
     const UINT8 *report =  (const UINT8*)data.constData();
     if (report[1] == 0xC4)
@@ -1506,7 +1521,7 @@ void RadarReceive::processReport(QByteArray data, int len)
         }
         default:
         {
-            qDebug()<<Q_FUNC_INFO<<"receive unknown report. size"<<len;
+//            qDebug()<<Q_FUNC_INFO<<"receive unknown report. size"<<len;
             break;
         }
         }
@@ -1516,7 +1531,7 @@ void RadarReceive::processReport(QByteArray data, int len)
 
 void RadarReceive::processFrame(QByteArray data, int len)
 {
-//    qDebug()<<Q_FUNC_INFO;
+//    qDebug()<<Q_FUNC_INFO<<_data<<_data_port;
     radar_frame_pkt *packet = reinterpret_cast<radar_frame_pkt *>(data.data());
 
     if (len < static_cast<int>(sizeof(packet->frame_hdr))) {
@@ -1560,13 +1575,16 @@ void RadarReceive::processFrame(QByteArray data, int len)
                   <<"scan_number"<<line->common.scan_number[0]<<line->common.scan_number[1]
                  <<"scanline"<<scanline;
         */
-        if(angle_raw == 1024)
+        if(radar_id == 0)
         {
-            emit signal_changeAntena("1");
-        }
-        else if (angle_raw == 3072)
-        {
-            emit signal_changeAntena("0");
+            if(angle_raw == 1024)
+            {
+                emit signal_changeAntena("1");
+            }
+            else if (angle_raw == 3072)
+            {
+                emit signal_changeAntena("0");
+            }
         }
 
         /* tapping result
@@ -1691,15 +1709,19 @@ void RI::timerTimeout()
     quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
     RadarState *cur_radar_state = radar_id ? &state_radar1 : &state_radar;
 
-//    qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"state_radar"<<*cur_radar_state;
-    if(radar_id)
-    {
+    if(state_radar == RADAR_STANDBY && state_radar1 == RADAR_STANDBY)
+        ResetSpokes();
 
-    }
+//    qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"state_radar"<<*cur_radar_state;
     if(*cur_radar_state == RADAR_TRANSMIT && TIMED_OUT(now,data_timeout))
     {
         *cur_radar_state = RADAR_STANDBY;
-        ResetSpokes();
+        /*
+        if(radar_id == 0)
+        {
+            ResetSpokes();
+        }
+        */
     }
     if(*cur_radar_state == RADAR_TRANSMIT && TIMED_OUT(now,stay_alive_timeout))
     {
@@ -1749,6 +1771,9 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
                                                int dataSize,
                                                int range_meter)
 {
+//    if(radar_id == 1)
+//        qDebug()<<Q_FUNC_INFO;
+
     quint64 now = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
     radar_timeout = now + WATCHDOG_TIMEOUT;
     data_timeout = now + DATA_TIMEOUT;
@@ -1764,6 +1789,7 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
     int bearing = MOD_ROTATION2048(bearing_raw / 2);  // divide by 2 to map on 2048 scanlines
 
     /*
+    */
     if((angle >= ONE_PER_FOUR_LINES_PER_ROTATION) && (angle<HALF_LINES_PER_ROTATION))
         angle += HALF_LINES_PER_ROTATION;
     else if((angle >= HALF_LINES_PER_ROTATION) && (angle<THREE_PER_FOUR_LINES_PER_ROTATION))
@@ -1772,7 +1798,6 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
         bearing += HALF_LINES_PER_ROTATION;
     else if((bearing >= HALF_LINES_PER_ROTATION) && (bearing<THREE_PER_FOUR_LINES_PER_ROTATION))
         bearing -= HALF_LINES_PER_ROTATION;
-    */
     /*
     if(angle >= HALF_LINES_PER_ROTATION)
         angle -= HALF_LINES_PER_ROTATION;
@@ -2016,9 +2041,18 @@ void RI::trigger_ReqRadarSetting()
 #elif defined (Q_OS_WIN32)
     Sleep(1000);
 #endif
-    receiveThread->setMulticastData(radar_settings.ip_data,radar_settings.port_data);
-    receiveThread->setMulticastReport(radar_settings.ip_report,radar_settings.port_report);
-    receiveThread->start();
+    if(radar_id == 0)
+    {
+        receiveThread->setMulticastData(radar_settings.ip_data,radar_settings.port_data);
+        receiveThread->setMulticastReport(radar_settings.ip_report,radar_settings.port_report);
+    }
+    else if(radar_id == 1)
+    {
+        receiveThread->setMulticastData(radar_settings.ip_data1,radar_settings.port_data1);
+        receiveThread->setMulticastReport(radar_settings.ip_report1,radar_settings.port_report1);
+    }
+        receiveThread->start();
+
 }
 
 void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 value)
@@ -2034,15 +2068,15 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         {
         case RADAR_STANDBY:
             *cur_radar_state = RADAR_STANDBY;
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_STANDBY";
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_STANDBY";
             break;
         case RADAR_TRANSMIT:
             *cur_radar_state = RADAR_TRANSMIT;
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_TRANSMIT";
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_TRANSMIT";
             break;
         case RADAR_WAKING_UP:
             *cur_radar_state = RADAR_WAKING_UP;
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_WAKING_UP";
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report status RADAR_WAKING_UP";
             break;
         default:
             break;
@@ -2053,31 +2087,31 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         {
         case RADAR_GAIN:
             filter.gain = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report gain"<<filter.gain;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report gain"<<filter.gain;
             break;
         case RADAR_RAIN:
             filter.rain = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report rain"<<filter.rain;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report rain"<<filter.rain;
             break;
         case RADAR_SEA:
             filter.sea = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report sea"<<filter.sea;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report sea"<<filter.sea;
             break;
         case RADAR_TARGET_BOOST:
             filter.targetBoost = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report TargetBoost"<<filter.targetBoost;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report TargetBoost"<<filter.targetBoost;
             break;
         case RADAR_LOCAL_INTERFERENCE_REJECTION:
             filter.LInterference = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report local interference"<<filter.LInterference;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report local interference"<<filter.LInterference;
             break;
         case RADAR_TARGET_EXPANSION:
             filter.targetExpan = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report argetExpan"<<filter.targetExpan;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report argetExpan"<<filter.targetExpan;
             break;
         case RADAR_RANGE:
             filter.range = value;
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report range"<<filter.range;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report range"<<filter.range;
             break;
         default:
             break;
@@ -2091,12 +2125,12 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
             align.bearing = static_cast<int>(value) / 10;
             if (align.bearing > 180)
                 align.bearing = align.bearing - 360;
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar bearing alignment"<<align.bearing;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar bearing alignment"<<align.bearing;
             break;
         case RADAR_ANTENA:
             // antenna height
             align.antena_height = static_cast<quint16>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar antenna_height"<<align.antena_height/1000;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar antenna_height"<<align.antena_height/1000;
             break;
         default:
             break;
@@ -2107,23 +2141,23 @@ void RI::receiveThread_Report(quint8 report_type, quint8 report_field, quint32 v
         {
         case RADAR_SCAN_SPEED:
             scanSignal.scan_speed = static_cast<quint16>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar scan_speed"<<scanSignal.scan_speed ;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar scan_speed"<<scanSignal.scan_speed ;
             break;
         case RADAR_NOISE_REJECT:
             scanSignal.noise_reject = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar noise_reject"<<scanSignal.noise_reject ;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar noise_reject"<<scanSignal.noise_reject ;
             break;
         case RADAR_TARGET_SEPARATION:
             scanSignal.target_sep = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar target_sep"<<scanSignal.target_sep ;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar target_sep"<<scanSignal.target_sep ;
             break;
         case RADAR_LOBE_SUPRESION:
             scanSignal.side_lobe_suppression = static_cast<quint8>(value); //0->auto
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar side_lobe_suppression"<<scanSignal.side_lobe_suppression ;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar side_lobe_suppression"<<scanSignal.side_lobe_suppression ;
             break;
         case RADAR_INTERFERENT:
             scanSignal.local_interference_rejection = static_cast<quint8>(value);
-            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar local_interference_rejection"<<scanSignal.local_interference_rejection ;
+//            qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"report radar local_interference_rejection"<<scanSignal.local_interference_rejection ;
             break;
         default:
             break;
@@ -2466,7 +2500,7 @@ bool RA::MultiPix(int ang, int rad)
     // if false clears out pixels of th blob in hist
     //    wxCriticalSectionLocker lock(ArpaTarget::m_ri->m_exclusive);
     qDebug()<<Q_FUNC_INFO<<ang<<rad;
-    int length = arpa_settings.min_contour_length;
+    int length = arpa_settings[0].min_contour_length;
     Polar start;
     start.angle = ang;
     start.r = rad;
@@ -2686,13 +2720,14 @@ void RA::DeleteTarget(Position target_pos) { AcquireOrDeleteMarpaTarget(target_p
 ARPATarget::ARPATarget(QObject *parent, RI *ri) :
     QObject(parent),m_ri(ri)
 {
+    /*
     cur_elapsed_time = initProtect();
     if(!checkProtect(cur_elapsed_time))
     {
         qDebug()<<"not valid";
         exit(0);
     }
-
+    */
     qDebug()<<Q_FUNC_INFO;
     m_kalman = 0;
     m_status = LOST;
@@ -2760,7 +2795,7 @@ bool ARPATarget::MultiPix(int ang, int rad)
     // pol must start on the contour of the blob
     // false if not
     // if false clears out pixels of th blob in hist
-    int length = arpa_settings.min_contour_length;
+    int length = arpa_settings[0].min_contour_length;
     Polar start;
     start.angle = ang;
     start.r = rad;

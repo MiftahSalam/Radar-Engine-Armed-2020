@@ -400,7 +400,7 @@ private:
 
 
 /********************************arpa****************************/
-#define MAX_NUMBER_OF_TARGETS (200)  // real max numer of targets is 1 less
+#define MAX_NUMBER_OF_TARGETS (8)  // real max numer of targets is 1 less
 #define MAX_CONTOUR_LENGTH (601)     // defines maximal size of target contour
 #define SPEED_HISTORY (8)
 
@@ -610,7 +610,7 @@ public:
     QUdpSocket socket;
 signals:
 
-private slots:
+public slots:
     void RadarTx();
     void RadarStby();
     void RadarStayAlive();

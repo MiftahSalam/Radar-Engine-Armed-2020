@@ -181,6 +181,8 @@ struct ReportScanSignal
 };
 struct RadarSettings
 {
+    bool enable;
+    bool enable1;
     bool show_rings;
     bool headingUp;
     bool show_compass;
@@ -275,9 +277,10 @@ extern ReportFilter filter;
 extern ReportAlign align;
 extern ReportScanSignal scanSignal;
 extern RadarSettings radar_settings;
-extern ARPASettings arpa_settings;
+extern ARPASettings arpa_settings[2];
 extern GZSettings gz_settings[3];
 extern TrailSettings trail_settings;
+extern QString tilting_path;
 extern QString cur_id_HDD;
 extern QString idGuard;
 extern bool checkExpired;
