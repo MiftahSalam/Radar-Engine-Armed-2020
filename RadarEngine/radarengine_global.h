@@ -187,6 +187,7 @@ struct RadarSettings
     bool headingUp;
     bool show_compass;
     bool show_heading_marker;
+    bool show_ppi_full;
     int last_scale;
     QString ip_data;
     uint port_data;

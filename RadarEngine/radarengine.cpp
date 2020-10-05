@@ -970,6 +970,8 @@ QDateTime initProtect()
 
 void setProtect(QDateTime elapsed_time)
 {
+    qDebug() << "setpro";
+
     QString str_for_encode = cur_id_HDD;
     QString check_expired = checkExpired ? "1" : "0";
     str_for_encode.append("*+").
@@ -1790,20 +1792,23 @@ void RI::radarReceive_ProcessRadarSpoke(int angle_raw,
 
     /*
     */
-    if((angle >= ONE_PER_FOUR_LINES_PER_ROTATION) && (angle<HALF_LINES_PER_ROTATION))
-        angle += HALF_LINES_PER_ROTATION;
-    else if((angle >= HALF_LINES_PER_ROTATION) && (angle<THREE_PER_FOUR_LINES_PER_ROTATION))
-        angle -= HALF_LINES_PER_ROTATION;
-    if((bearing >= ONE_PER_FOUR_LINES_PER_ROTATION) && (bearing<HALF_LINES_PER_ROTATION))
-        bearing += HALF_LINES_PER_ROTATION;
-    else if((bearing >= HALF_LINES_PER_ROTATION) && (bearing<THREE_PER_FOUR_LINES_PER_ROTATION))
-        bearing -= HALF_LINES_PER_ROTATION;
-    /*
-    if(angle >= HALF_LINES_PER_ROTATION)
-        angle -= HALF_LINES_PER_ROTATION;
-    if(bearing >= HALF_LINES_PER_ROTATION)
-        bearing -= HALF_LINES_PER_ROTATION;
-    */
+    if(!radar_settings.show_ppi_full)
+    {
+        if((angle >= ONE_PER_FOUR_LINES_PER_ROTATION) && (angle<HALF_LINES_PER_ROTATION))
+            angle += HALF_LINES_PER_ROTATION;
+        else if((angle >= HALF_LINES_PER_ROTATION) && (angle<THREE_PER_FOUR_LINES_PER_ROTATION))
+            angle -= HALF_LINES_PER_ROTATION;
+        if((bearing >= ONE_PER_FOUR_LINES_PER_ROTATION) && (bearing<HALF_LINES_PER_ROTATION))
+            bearing += HALF_LINES_PER_ROTATION;
+        else if((bearing >= HALF_LINES_PER_ROTATION) && (bearing<THREE_PER_FOUR_LINES_PER_ROTATION))
+            bearing -= HALF_LINES_PER_ROTATION;
+        /*
+        if(angle >= HALF_LINES_PER_ROTATION)
+            angle -= HALF_LINES_PER_ROTATION;
+        if(bearing >= HALF_LINES_PER_ROTATION)
+            bearing -= HALF_LINES_PER_ROTATION;
+        */
+    }
 
     UINT8 *raw_data = reinterpret_cast<UINT8*>(data.data());
 
@@ -1973,11 +1978,11 @@ void RI::ComputeColourMap()
     for (int i = 0; i < BLOB_COLOURS; i++)
         m_colour_map_rgb[i] = QColor(0, 0, 0);
 
-    QColor color = radar_id ? Qt::red : Qt::green;
+//    QColor color = radar_id ? Qt::red : Qt::green;
 
-    m_colour_map_rgb[BLOB_STRONG] = color;
-    m_colour_map_rgb[BLOB_INTERMEDIATE] = color;
-    m_colour_map_rgb[BLOB_WEAK] = color;
+    m_colour_map_rgb[BLOB_STRONG] = Qt::red;
+    m_colour_map_rgb[BLOB_INTERMEDIATE] = Qt::green;
+    m_colour_map_rgb[BLOB_WEAK] = Qt::blue;
 
     if (trail_settings.enable)
     {
