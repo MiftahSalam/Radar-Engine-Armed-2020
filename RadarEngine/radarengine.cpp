@@ -1337,6 +1337,11 @@ void RadarReceive::run()
     exit_req = false;
     bool enable = radar_id == 0 ? radar_settings.enable : radar_settings.enable1;
 
+    if(radar_settings.enable)
+        radar_id_ref = 0;
+    else if(radar_settings.enable1)
+        radar_id_ref = 1;
+
     qDebug()<<Q_FUNC_INFO<<data_thread<<data_port_thread<<enable;
     QHostAddress groupAddress = QHostAddress(data_thread);
 
@@ -1439,6 +1444,7 @@ void RadarReceive::processReport(QByteArray data, int len)
     const UINT8 *report =  (const UINT8*)data.constData();
     if (report[1] == 0xC4)
     {
+        emit signal_ReportAct();
         switch ((len << 8) + report[0])
         {
         case (18 << 8) + 0x01:
@@ -1576,8 +1582,8 @@ void RadarReceive::processFrame(QByteArray data, int len)
         qDebug()<<Q_FUNC_INFO<<"radar_id"<<radar_id<<"angle_raw"<<angle_raw
                   <<"scan_number"<<line->common.scan_number[0]<<line->common.scan_number[1]
                  <<"scanline"<<scanline;
-        */
-        if(radar_id == 0)
+        */        
+        if(radar_id == radar_id_ref)
         {
             if(angle_raw == 1024)
             {
@@ -1700,6 +1706,8 @@ RI::RI(QObject *parent, int id) :
     receiveThread = new RadarReceive(this);
     connect(receiveThread,SIGNAL(updateReport(quint8,quint8,quint32)),
             this,SLOT(receiveThread_Report(quint8,quint8,quint32)));
+    connect(receiveThread,&RadarReceive::signal_ReportAct,
+            this,&RI::signal_report);
     connect(receiveThread,&RadarReceive::ProcessRadarSpoke,
             this,&RI::radarReceive_ProcessRadarSpoke);
     connect(receiveThread,&RadarReceive::signal_changeAntena,this,&RI::signal_changeAntena);
@@ -1718,12 +1726,6 @@ void RI::timerTimeout()
     if(*cur_radar_state == RADAR_TRANSMIT && TIMED_OUT(now,data_timeout))
     {
         *cur_radar_state = RADAR_STANDBY;
-        /*
-        if(radar_id == 0)
-        {
-            ResetSpokes();
-        }
-        */
     }
     if(*cur_radar_state == RADAR_TRANSMIT && TIMED_OUT(now,stay_alive_timeout))
     {
@@ -2056,7 +2058,7 @@ void RI::trigger_ReqRadarSetting()
         receiveThread->setMulticastData(radar_settings.ip_data1,radar_settings.port_data1);
         receiveThread->setMulticastReport(radar_settings.ip_report1,radar_settings.port_report1);
     }
-        receiveThread->start();
+    receiveThread->start();
 
 }
 

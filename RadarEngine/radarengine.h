@@ -255,6 +255,7 @@ signals:
     void ProcessRadarSpoke(int angle_raw, QByteArray data,
                            int dataSize, int range_meter);
     void updateReport(quint8 report_type,quint8 report_field,quint32 value);
+    void signal_ReportAct();
     void signal_changeAntena(QString sig);
 
 protected:
@@ -270,7 +271,7 @@ private:
     QString _report;
     uint _report_port;
     QMutex mutex;
-    int radar_id;
+    int radar_id, radar_id_ref;
 };
 
 
@@ -318,6 +319,7 @@ signals:
     void signal_stay_alive();
     void signal_plotRadarSpoke(int transparency, int angle, UINT8* data, size_t len);
     void signal_changeAntena(QString sig);
+    void signal_report();
 
 private slots:
     void receiveThread_Report(quint8 report_type,quint8 report_field,quint32 value);
