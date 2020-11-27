@@ -22,6 +22,7 @@ win32 {
 }
 
 unix {
+        DEFINES += UBUNTU16
         target.path = /usr/lib
         INSTALLS = target
 }

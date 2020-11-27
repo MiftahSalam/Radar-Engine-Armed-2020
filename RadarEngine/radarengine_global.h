@@ -38,6 +38,8 @@
 #define ONE_PER_FOUR_LINES_PER_ROTATION (LINES_PER_ROTATION/4)   // but use only half that in practice
 #define THREE_PER_FOUR_LINES_PER_ROTATION (LINES_PER_ROTATION*3/4)   // but use only half that in practice
 
+#define ANTENE_COUNT (2) //2 antena
+
 #define RETURNS_PER_LINE (512)      //  radars generate 512 separate values per range, at 8 bits each
 #define DEGREES_PER_ROTATION (360)  // Classical math
 

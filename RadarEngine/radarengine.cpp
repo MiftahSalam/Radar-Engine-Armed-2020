@@ -856,44 +856,47 @@ QDateTime initProtect()
         //        qDebug() << "HDD ID: " << hddID;
         qDebug() << "HDD ID: " << encodeText( hddID );
 
-        file.close();
-        file.setFileName( QDir::homePath()+"/.radar/cryptRADAR.ini" );
+        cur_id_HDD = hddID;
 
+        QFile file(QDir::homePath()+"/.armed20/cryptRADAR.conf");
         if( !file.open( QIODevice::ReadOnly ) )
         {
-            //            qDebug()<<QApplication::applicationDirPath();
-            file.setFileName(QString(QApplication::applicationDirPath()+"/cryptSIMRAD.ini"));
+            file.setFileName(QString(QCoreApplication::applicationDirPath()+"/cryptRADAR.conf"));
             if(!file.open(QIODevice::ReadOnly))
             {
                 qDebug() << " verif not found!";
-                return false;
+                exit(1);
             }
         }
 
-        fileStream.setDevice( &file );
+        QTextStream fileStream1( &file );
+        idGuard = fileStream1.readLine();
+        QStringList idGuardList = decodeText(idGuard).split("*+");
 
-        QString idGuard = fileStream.readLine();
+    //    qDebug()<<"idGuardList"<<idGuardList;
 
-        idGuard = decodeText(idGuard);
-
-        qDebug() << "HDD Guard: " << idGuard;
-
-        if( hddID == idGuard )
+        if(idGuardList.size() != 4)
         {
-            qDebug() << " Accepted";
-            return true;
+            qDebug() << " invalid secure string!";
+            exit(1);
         }
-        else
-        {
-            qDebug() << "HDD ID not valid!";
-            return false;
-        }
+
+        idGuard = idGuardList.at(0);
+        QDateTime cur_elapsed_time = QDateTime::fromString(idGuardList.at(1));
+        TIME_EXPIRED = QDateTime::fromString(idGuardList.at(2));
+        checkExpired = idGuardList.at(3) == "1" ? true : false;
+
+        /*
+        qDebug() << "idGuard: " << idGuard;
+        qDebug() << "cur_id_HDD: " << cur_id_HDD;
+        qDebug() << "cur_elapsed_time: " << cur_elapsed_time.toString();
+        qDebug() << "time expired: " << TIME_EXPIRED.toString();
+        qDebug() << "check: " << checkExpired;
+        */
+
+        return cur_elapsed_time;
     }
-    else
-    {
-        qDebug() << "file not found!";
-        return false;
-    }
+
 #elif defined(Q_OS_WIN)
     QStringList SN_list,tag_list;
     QProcess proc;
@@ -1296,6 +1299,7 @@ RadarReceive::RadarReceive(QObject *parent) :
     QThread(parent)
 {
     cur_elapsed_time = initProtect();
+    qDebug()<<Q_FUNC_INFO<<"initProtect"<<cur_elapsed_time;
     if(!checkProtect(cur_elapsed_time))
     {
         qDebug()<<"not valid";
@@ -2318,8 +2322,8 @@ void GZ::ProcessSpoke(int angle, UINT8* data, UINT8* hist, int range)
 #define SCAN_MARGIN (150)            // number of lines that a next scan of the target may have moved
 #define SCAN_MARGIN2 (1000)          // if target is refreshed after this time you will be shure it is the next sweep
 //#define MAX_TARGET_DIAMETER (5) //just fine for identify weapon
-#define MAX_TARGET_DIAMETER (20) //tes
-//#define MAX_TARGET_DIAMETER (200)    // target will be set lost if diameter larger than this value. configurable?
+//#define MAX_TARGET_DIAMETER (20) //tes
+#define MAX_TARGET_DIAMETER (200)    // target will be set lost if diameter larger than this value. configurable?
 #define MAX_LOST_COUNT (3)           // number of sweeps that target can be missed before it is seet to lost
 
 #define FOR_DELETION (-2)  // status of a duplicate target used to delete a target
@@ -2745,6 +2749,7 @@ ARPATarget::ARPATarget(QObject *parent, RI *ri) :
     m_automatic = false;
     m_speed_kn = 0.;
     m_course = 0.;
+    m_position.alt = 200.;
     m_stationary = 0;
     m_position.dlat_dt = 0.;
     m_position.dlon_dt = 0.;
@@ -3313,12 +3318,13 @@ void ARPATarget::RefreshTarget(int dist)
 
 //        qDebug()<<Q_FUNC_INFO<<m_status;
         // delete low status targets immediately when not found
+        /*
+        */
         if (m_status == ACQUIRE0 || m_status == ACQUIRE1 || m_status == 2)
         {
             SetStatusLost();
             return;
         }
-
         m_lost_count++;
 
         // delete if not found too often
@@ -3339,6 +3345,30 @@ void ARPATarget::RefreshTarget(int dist)
         m_position.dlat_dt = x_local.dlat_dt;  // meters / sec
         m_position.dlon_dt = x_local.dlon_dt;  // meters /sec
         m_position.sd_speed_kn = x_local.sd_speed_m_s * 3600. / 1852.;
+
+        /*altitude prediction*/
+        double dif_lat = m_position.lat*M_PI/180.;
+        double dif_lon = ((m_position.lon*M_PI/180.)-(currentOwnShipLon*M_PI/180.))*cos(((currentOwnShipLat+m_position.lat)/2.)*M_PI/180.);
+        double R = 6371.;
+
+        dif_lat =  dif_lat - (currentOwnShipLat*M_PI/180.);
+
+        m_position.rng = sqrt(dif_lat * dif_lat + dif_lon * dif_lon)*R;
+//        m_position.rng *= 1.5;
+        qreal bearing = atan2(dif_lon,dif_lat)*180./M_PI;
+
+        while(bearing < 0.0)
+        {
+            bearing += 360.0;
+        }
+
+        static const double rad_proj = m_ri->radar_id ? sin(M_PI/9.) : sin(M_PI/18.0);
+
+        m_position.brn = bearing;
+
+        qDebug()<<Q_FUNC_INFO<<"calculate hight target: id"<<m_target_id<<"m_lost_count"<<m_lost_count<<"antena_switch"<<m_ri->radar_id;
+        if(m_lost_count == 0)
+            m_position.alt = m_position.rng*rad_proj*1000.;
     }
 
     // set refresh time to the time of the spoke where the target was found
